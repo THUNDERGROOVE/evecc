@@ -1,0 +1,42 @@
+cmake_minimum_required(VERSION 3.23)
+
+option(SKIP_AUTOMATE_VCPKG "When ON, you will need to built the packages required by eveloader2 on \
+your own or supply your own vcpkg toolchain.")
+
+if (NOT SKIP_AUTOMATE_VCPKG)
+    include(cmake/automate-vcpkg.cmake)
+
+    vcpkg_bootstrap()
+    vcpkg_install_packages(loguru python2 zlib)
+endif()
+
+project(evecc)
+
+set(CMAKE_CXX_STANDARD 17)
+
+set(evecc_src
+        src/main.cpp
+        src/scripts.h
+        src/bluecrypto.cpp
+        src/bluecrypto.h
+        src/blue_module.h
+        src/blue_module.cpp
+        src/util.cpp
+        src/util.h
+        src/ini.cpp
+        src/ini.h
+        src/INIReader.cpp
+        src/INIReader.h
+        )
+
+add_executable(evecc ${evecc_src})
+
+find_package(ZLIB REQUIRED)
+target_link_libraries(evecc PRIVATE ZLIB::ZLIB)
+
+find_package(Python2 COMPONENTS Development)
+target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/python2.7/")
+
+target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include" "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}/src/")
+target_link_directories(evecc PRIVATE "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" )
+
