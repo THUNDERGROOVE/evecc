@@ -9,11 +9,13 @@
 enum CryptKeyType {
 	CRYPTKEY_CCP,
     CRYPTKEY_ROAMING,
+    CRYPTKEY_NO_CRYPTO,
 };
 
 static char *key_types[] = {
         "ccp",
         "roaming",
+        "no_crypto",
         NULL,
 };
 struct keys_blob {

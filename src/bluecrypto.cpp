@@ -210,14 +210,27 @@ bool import_keys(char *password) {
 //	}
 
 #define HasFile(name) !(INVALID_FILE_ATTRIBUTES == GetFileAttributes(name) && GetLastError() == ERROR_FILE_NOT_FOUND)
-    if(HasFile(EVECC_ROAMING_KEYS"pub") && HasFile(EVECC_ROAMING_KEYS"priv") && HasFile(EVECC_ROAMING_KEYS"crypt")) {
-        if (password == NULL) {
-            printf("To use roaming keys, you must supply the password used to generate them --password <password>");
-            exit(-1);
-        }
+    if(HasFile(EVECC_ROAMING_KEYS"pub") && HasFile(EVECC_ROAMING_KEYS"priv")/* && HasFile(EVECC_ROAMING_KEYS"crypt")*/) {
+//        if (password == NULL) {
+//            printf("To use roaming keys, you must supply the password used to generate them --password <password>");
+//            exit(-1);
+//        }
         // we have EVECC_ROAMING_KEYS available
         printf(" >> roaming keys %s found, loading this as well!\n", EVECC_ROAMING_KEYS);
         ctx->roaming_keys = load_keys_ini();
+
+        HCRYPTKEY priv = NULL;
+        if (!CreatePrivateExponentOneKey(MS_ENHANCED_PROV, PROV_RSA_FULL, NULL, AT_KEYEXCHANGE, &ctx->context, &priv)) {
+            printf(" >> Failed generating exp 1 crypt key\n");
+            DWORD err = GetLastError();
+            return false;
+        }
+
+        if (!CryptImportKey(ctx->context, (BYTE*)codeCryptKey_orig, 140, priv, 0, &ctx->roaming_crypt_key)) {
+            printf(" >> Failed loading crypt key\n");
+            DWORD err = GetLastError();
+            return false;
+        }
 
         HCRYPTKEY pkey = generate_key_from_password(password, ctx->context);
 
@@ -227,23 +240,14 @@ bool import_keys(char *password) {
             return false;
         }
 
+
+
         if (!CryptImportKey(ctx->context, (BYTE*)ctx->roaming_keys->priv_key, 596, pkey, 0, &ctx->roaming_priv)) {
-            printf(" >> Failed loading crypt key\n");
-            DWORD err = GetLastError();
-            return false;
-        }
-        HCRYPTKEY priv = NULL;
-        if (!CreatePrivateExponentOneKey(MS_ENHANCED_PROV, PROV_RSA_FULL, NULL, AT_KEYEXCHANGE, &ctx->context, &priv)) {
-            printf(" >> Failed generating exp 1 crypt key\n");
-            DWORD err = GetLastError();
+            printf(" >> Failed loading private key\n");
+            GetLastError();
             return false;
         }
 
-        if (!CryptImportKey(ctx->context, (BYTE*)ctx->roaming_keys->crypt_blob, 140, priv, 0, &ctx->roaming_crypt_key)) {
-            printf(" >> Failed loading crypt key\n");
-            DWORD err = GetLastError();
-            return false;
-        }
 
 
         setup_signing_context();
@@ -257,6 +261,10 @@ bool import_keys(char *password) {
 }
 
 char *SignData(char *data, uint32_t data_size, uint32_t *out_size, char *password) {
+    if (ctx->set_key_type == CRYPTKEY_NO_CRYPTO) {
+        return strdup("lol eat butt");
+    }
+
     HCRYPTPROV context = NULL;
     if (!CryptAcquireContextA(&context, NULL, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
         exit(1);
@@ -309,8 +317,14 @@ char *SignData(char *data, uint32_t data_size, uint32_t *out_size, char *passwor
 }
 
 
+char *memdup(const char *input, uint32_t size) {
+    char *o = (char *)calloc(size, sizeof(char));
+    memcpy(o, input, size);
+    return o;
+}
 
 char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes, CryptKeyType key_type, bool zip) {
+
 	uint32_t total_out = compressBound(input_size);
 	char *tmp_out = (char *)calloc(1, total_out);
 	if (zip) {
@@ -341,8 +355,14 @@ char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes,
 		//inflateEnd(&info);
 	}
 
+    if (ctx->set_key_type == CRYPTKEY_NO_CRYPTO) {
+        *read_bytes = total_out;
+        return tmp_out;
+    }
+
 	uint32_t encrypted_size = total_out;
-	if (!CryptEncrypt(ctx->GetKey(key_type), 0, true, 0, NULL, (DWORD *)&total_out, total_out)) {
+    HCRYPTKEY key = ctx->GetKey(key_type);
+	if (!CryptEncrypt(key, 0, true, 0, NULL, (DWORD *)&total_out, total_out)) {
 		printf(" >> Failed to decrypt\n");
 		DWORD err = GetLastError();
 		*read_bytes = err;
@@ -350,7 +370,7 @@ char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes,
 	}
 
 	char *real_out = (char *)calloc(1, total_out);
-	memcpy(real_out, tmp_out, total_out);
+	memcpy(real_out, tmp_out, encrypted_size);
 	free(tmp_out);
 
 	uint32_t total_in = encrypted_size;
@@ -400,6 +420,11 @@ void ErrorExit(LPTSTR lpszFunction) {
 uint32_t
 UnjumbleString(const char *input, uint32_t input_size, char *output, uint32_t output_size, CryptKeyType key_type,
                bool zip) {
+
+    if (ctx->set_key_type == CRYPTKEY_NO_CRYPTO) {
+        memcpy(output, input, input_size);
+        return input_size;
+    }
 
 	char *real_input = (char *)calloc(1, input_size);
 	memcpy(real_input, input, input_size);
@@ -452,6 +477,9 @@ UnjumbleString(const char *input, uint32_t input_size, char *output, uint32_t ou
 }
 
 HCRYPTKEY generate_key_from_password(char *password, HCRYPTPROV context) {
+    if (password == NULL) {
+        return NULL;
+    }
     printf(" >> generating base key from password\n");
     HCRYPTHASH hash = NULL;
     if (!CryptCreateHash(context, CALG_SHA, NULL, NULL, &hash)) {
@@ -529,10 +557,12 @@ bool write_keys_ini(char *pub_key, size_t pub_key_size, char *priv_key, size_t p
     fwrite(priv_key, priv_key_size, 1, f);
     fflush(f);
     fclose(f);
+    /*
     f = fopen(EVECC_ROAMING_KEYS"crypt", "wb");
     fwrite(crypt_blob, crypt_blob_size, 1, f);
     fflush(f);
     fclose(f);
+     */
 
     return true;
 }
@@ -557,6 +587,7 @@ keys_blob *load_keys_ini() {
     fread(keys->priv_key, keys->priv_key_size, sizeof(char), f);
     fclose(f);
 
+    /*
     f = fopen(EVECC_ROAMING_KEYS"crypt", "rb");
     fseek(f, 0, SEEK_END);
     keys->crypt_blob_size = ftell(f);
@@ -564,11 +595,16 @@ keys_blob *load_keys_ini() {
     keys->crypt_blob = (char *)calloc(keys->crypt_blob_size, sizeof(char));
     fread(keys->crypt_blob, keys->crypt_blob_size, sizeof(char), f);
     fclose(f);
+     */
 
     return keys;
 }
 
 bool make_code_accessors(char *password) {
+    /* @TODO(np): for now, evecc only supports reusing CCP's original crypt key
+        with the current patches in place, we can load code correctly assuming that a new private/public key has been
+        generated, and that public key has been injected into the client.
+    */
     HCRYPTKEY pkey = generate_key_from_password(password, ctx->context);
     HCRYPTKEY sig;
     printf(" >> beginning generation of signing keys\n");
@@ -583,13 +619,19 @@ bool make_code_accessors(char *password) {
     printf(" >> exporting private key..\n");
     char *priv_key = smart_export_key(sig, PRIVATEKEYBLOB, &priv_key_size, pkey);
 
-    HCRYPTKEY crypt;
+    /*
+    Currently we can't use our own crypt key - the client is failing to accept it for unknown reasons
+     HCRYPTKEY crypt;
     if (!CryptGenKey(ctx->context, CALG_3DES, CRYPTLEN << 16 | CRYPT_EXPORTABLE, &crypt)) {
         printf(" >> failed to generate crypt key\n");
         return false;
     }
     size_t crypt_blob_size = 0;
     char *crypt_blob = export_plain_session_blob(crypt, &crypt_blob_size);
+     */
+
+    size_t crypt_blob_size = 0;
+    char *crypt_blob = NULL;
 
     return write_keys_ini(pub_key, pub_key_size, priv_key, priv_key_size, crypt_blob, crypt_blob_size);
 }

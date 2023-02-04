@@ -206,9 +206,10 @@ CryptKeyType parse_key_type(char *type) {
         if (key_types[i] == NULL) {
             break;
         }
-        if (strcmp(key_types[0], type) == 0) {
+        if (strcmp(key_types[i], type) == 0) {
             return (CryptKeyType)i;
         }
+        i++;
     }
     return CRYPTKEY_ROAMING;
 }
@@ -230,30 +231,38 @@ int main(int argc, char **argv) {
     char *key_type = NULL;
 
     parse_argument("--password", &password);
-    set_password(password);
+    parse_argument("-o", &output_file);
+    parse_argument("-k", &key_type);
+    CryptKeyType kt = parse_key_type(key_type);
+
 
     bool is_genkey = has_argument("--gen-key");
 
-    if (!is_genkey) {
-        int status = init_cryptcontext(password);
-        if (status != 0) {
-            printf(" >>> failed to initialize crypt context\n");
-            return -1;
-        }
+    if (kt != CRYPTKEY_NO_CRYPTO) {
+        if (!is_genkey) {
+            int status = init_cryptcontext(password);
+            set_password(password);
+            if (status != 0) {
+                printf(" >>> failed to initialize crypt context\n");
+                return -1;
+            }
 
-        ctx->set_key_type = parse_key_type(key_type);
-        printf(" >> key type set to: %s\n", key_types[ctx->set_key_type]);
+            ctx->set_key_type = parse_key_type(key_type);
+            printf(" >> key type set to: %s\n", key_types[ctx->set_key_type]);
+        } else {
+            int status = init_cryptcontext_gen(password);
+            set_password(password);
+
+            if (status != 0) {
+                printf(" >>> failed to initialize crypt context\n");
+                return -1;
+            }
+        }
     } else {
-        int status = init_cryptcontext_gen(password);
-
-        if (status != 0) {
-            printf(" >>> failed to initialize crypt context\n");
-            return -1;
-        }
+        ctx = new CryptContext;
+        ctx->set_key_type = kt;
+        set_password(password);
     }
-
-	parse_argument("-o", &output_file);
-    parse_argument("-k", &key_type);
 
 	std::vector<std::string> input_files = parse_all_string_args("-I");
 	if (parse_argument("--dumpcode", &input_file)) {
