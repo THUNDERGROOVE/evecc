@@ -27,7 +27,7 @@ set(evecc_src
         src/ini.h
         src/INIReader.cpp
         src/INIReader.h
-        )
+        src/commands.cpp src/commands.h)
 
 add_executable(evecc ${evecc_src})
 

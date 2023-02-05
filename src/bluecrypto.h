@@ -60,3 +60,5 @@ bool import_keys(char *password);
 keys_blob *load_keys_blob(char *prefix);
 bool make_code_accessors(char *password);
 HCRYPTKEY generate_key_from_password(char *password, HCRYPTPROV context);
+
+CryptKeyType parse_key_type(char *type);

@@ -8,6 +8,7 @@
 
 
 #include "zlib.h"
+#include <loguru/loguru.hpp>
 
 BOOL CreatePrivateExponentOneKey(LPTSTR szProvider,
 	DWORD dwProvType,
@@ -112,17 +113,6 @@ BOOL CreatePrivateExponentOneKey(LPTSTR szProvider,
 	return fReturn;
 }
 
-char *strlrev(char *p, int len)
-{
-	char *out = (char *)calloc(1, len);
-
-	for (int i = len; i > 0; i--) {
-		out[i] = p[i];
-	}
-	return out;
-}
-
-
 HCRYPTKEY CryptContext::GetKey(CryptKeyType type) {
 	switch (type) {
 	case CRYPTKEY_CCP:
@@ -142,7 +132,9 @@ CryptContext *ctx = NULL;
 char *export_plain_session_blob(HCRYPTKEY sessionKey, size_t *blob_size) {
     HCRYPTKEY priv = NULL;
     if (!CreatePrivateExponentOneKey(MS_ENHANCED_PROV, PROV_RSA_FULL, NULL, AT_KEYEXCHANGE, &ctx->context, &priv)) {
-        printf(" >> Failed generating exp 1 crypt key\n");
+        std::string err = get_last_error_string();
+        LOG_F(ERROR, "failed to create exponent of one key: %s", err.c_str());
+        exit(-1);
     }
 
     return smart_export_key(sessionKey, SIMPLEBLOB, blob_size, priv);
@@ -152,7 +144,8 @@ int init_cryptcontext_gen(char *password) {
     ctx = new CryptContext;
     HCRYPTPROV context = NULL;
 	if (!CryptAcquireContextA(&context, NULL, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
-		printf(" >> Failed to acquired cryptographic context\n");
+        std::string err = get_last_error_string();
+        LOG_F(ERROR, "failed to acquire cryptographic context: %s", err.c_str());
 		return -5;
 	}
     ctx->context = context;
@@ -165,13 +158,14 @@ int init_cryptcontext(char *password) {
 	ctx = new CryptContext;
 	HCRYPTPROV context = NULL;
 	if (!CryptAcquireContextA(&context, NULL, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
-		printf(" >> Failed to acquired cryptographic context\n");
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to acquire cryptographic context: %s", err.c_str());
 		return -5;
 	}
     ctx->context = context;
 
     if (!import_keys(password)) {
-        printf(" >> Failed to import keys!\n");
+        LOG_F(ERROR, "failed to import keys!");
         return -7;
     }
 
@@ -184,87 +178,94 @@ bool import_keys(char *password) {
         ctx->ccp_keys = load_keys_blob(CCP_KEYS);
         HCRYPTKEY priv = NULL;
         if (!CreatePrivateExponentOneKey(MS_ENHANCED_PROV, PROV_RSA_FULL, NULL, AT_KEYEXCHANGE, &ctx->context, &priv)) {
-            printf(" >> Failed generating exp 1 crypt key\n");
-            DWORD err = GetLastError();
+            std::string err = get_last_error_string();
+            LOG_F(ERROR,"failed to create exponent of one key: %s", err.c_str());
             return false;
         }
+        LOG_F(INFO, "successfully created exponent of one key");
 
         if (!CryptImportKey(ctx->context, (BYTE *)ctx->ccp_keys->crypt_blob, ctx->ccp_keys->crypt_blob_size, priv, 0, &ctx->ccp_crypt_key)) {
-            printf(" >> Failed loading crypt key\n");
-            DWORD err = GetLastError();
+            std::string err = get_last_error_string();
+            LOG_F(ERROR, "failed loading crypt key: %s", err.c_str());
             return false;
         }
+        LOG_F(INFO, "successfully loaded CCP crypt key blob");
+    } else {
+        LOG_F(ERROR, "you must first dump CCP's keys with --dump-keys <path to blue.dll>");
+        exit(-12);
     }
     if(HasFile(EVECC_ROAMING_KEYS"pub") && HasFile(EVECC_ROAMING_KEYS"priv")) {
-        printf(" >> roaming keys %s found, loading this as well!\n", EVECC_ROAMING_KEYS);
+        LOG_F(INFO," roaming keys %s found, loading this as well!", EVECC_ROAMING_KEYS);
         ctx->roaming_keys = load_keys_blob(EVECC_ROAMING_KEYS);
 
         HCRYPTKEY pkey = generate_key_from_password(password, ctx->context);
 
         if (!CryptImportKey(ctx->context, (BYTE*)ctx->roaming_keys->pub_key, 148, NULL, 0, &ctx->roaming_pub)) {
-            printf(" >> Failed loading crypt key\n");
-            DWORD err = GetLastError();
+            std::string err = get_last_error_string();
+            LOG_F(ERROR,"failed loading public key: %s", err.c_str());
             return false;
         }
+        LOG_F(INFO, "successfully loaded roaming public key blob");
 
         if (!CryptImportKey(ctx->context, (BYTE*)ctx->roaming_keys->priv_key, 596, pkey, 0, &ctx->roaming_priv)) {
-            printf(" >> Failed loading private key\n");
-            GetLastError();
+            std::string err = get_last_error_string();
+            LOG_F(ERROR,"failed loading private key: %s", err.c_str());
             return false;
         }
+        LOG_F(INFO, "successfully loaded roaming private key blob");
     } else {
-        printf(" !! no keys\n");
+        LOG_F(ERROR, "you must first generate an RSA key pair with --gen-key");
         exit(-11);
     }
 
-//	ctx->ccp_key = key;
     return true;
 }
 
 char *SignData(char *data, uint32_t data_size, uint32_t *out_size, char *password) {
     HCRYPTPROV context = NULL;
     if (!CryptAcquireContextA(&context, NULL, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
+        std::string err = get_last_error_string();
+        LOG_F(ERROR, "failed to acquire cryptographic context: %s", err.c_str());
         exit(1);
     }
     HCRYPTKEY pkey = generate_key_from_password(password, context);
 
     HCRYPTKEY key = NULL;
     if (!CryptImportKey(context, (const BYTE*)ctx->roaming_keys->priv_key, ctx->roaming_keys->priv_key_size, pkey, 0, &key)) {
-        printf(" >> Failed to import key\n");
-        DWORD err = GetLastError();
-        *out_size = err;
+        std::string err = get_last_error_string();
+        LOG_F(ERROR, "failed to import key: %s", err.c_str());
+        *out_size = -1;
         return NULL;
     }
 
     HCRYPTHASH hash = NULL;
 	if (!CryptCreateHash(context, CALG_SHA, NULL, 0, &hash)) {
-		printf(" >> Failed to create hash\n");
-		DWORD err = GetLastError();
-		*out_size = err;
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to create hash: %s", err.c_str());
+		*out_size = -1;
 		return NULL;
 	}
 
 	if (!CryptHashData(hash, (BYTE *)data, data_size, 0)) {
-		printf(" >> Failed to hash data\n");
-		DWORD err = GetLastError();
-		*out_size = err;
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to hash data: %s", err.c_str());
 		return NULL;
 	}
 
 	uint32_t sig_size = 0;
 	if (!CryptSignHashA(hash, AT_SIGNATURE, NULL, 0, NULL, (DWORD *)&sig_size)) {
-		printf(" >> Failed to determine signature size\n");
-		DWORD err = GetLastError();
-		*out_size = err;
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to determine signature size: %s", err.c_str());
+		*out_size = -1;
 		return NULL;
 	}
 
 	char *signature = (char *)calloc(1, sig_size);
 
 	if (!CryptSignHashA(hash, AT_SIGNATURE, NULL, 0, (BYTE *)signature, (DWORD *)&sig_size)) {
-		printf(" >> Failed to determine signature size\n");
-		DWORD err = GetLastError();
-		*out_size = err;
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to determine signature size: %s", err.c_str());
+		*out_size = -1;
 		return NULL;
 	}
 
@@ -315,9 +316,9 @@ char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes,
 	uint32_t encrypted_size = total_out;
     HCRYPTKEY key = ctx->GetKey(key_type);
 	if (!CryptEncrypt(key, 0, true, 0, NULL, (DWORD *)&total_out, total_out)) {
-		printf(" >> Failed to decrypt\n");
-		DWORD err = GetLastError();
-		*read_bytes = err;
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to decrypt: %s", err.c_str());
+		*read_bytes = -1;
 		return NULL;
 	}
 
@@ -328,9 +329,9 @@ char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes,
 	uint32_t total_in = encrypted_size;
 
 	if (!CryptEncrypt(ctx->GetKey(key_type), 0, true, 0, (BYTE *)real_out, (DWORD *)&total_in, total_out)) {
-		printf(" >> Failed to decrypt\n");
-		DWORD err = GetLastError();
-		*read_bytes = err;
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to decrypt: %s", err.c_str());
+		*read_bytes = -1;
 		return NULL;
 	}
 	*read_bytes = total_in;
@@ -383,11 +384,8 @@ UnjumbleString(const char *input, uint32_t input_size, char *output, uint32_t ou
 			     (BYTE *)real_input, (DWORD *)&decrypted_size);
 
 	if (!val) {
-
-		printf(" >> Failed to decrypt\n");
-		ErrorExit(TEXT("CryptDecrypt"));
-		DWORD err = GetLastError();
-		DebugBreak();
+        std::string err = get_last_error_string();
+		LOG_F(ERROR,"failed to decrypt: %s", err.c_str());
 		return -8;
 	}
 
@@ -427,19 +425,22 @@ HCRYPTKEY generate_key_from_password(char *password, HCRYPTPROV context) {
     if (password == NULL) {
         return NULL;
     }
-    printf(" >> generating base key from password\n");
+    LOG_F(INFO,"generating base key from password");
     HCRYPTHASH hash = NULL;
     if (!CryptCreateHash(context, CALG_SHA, NULL, NULL, &hash)) {
-        printf(" >> Failed to create hasher\n");
+        std::string err = get_last_error_string();
+        LOG_F(ERROR,"failed to create hasher: %s", err.c_str());
         exit(-1);
     }
     if (!CryptHashData(hash, (const BYTE *)password, strlen(password), 0)) {
-        printf(" >> Failed to hash password\n");
+        std::string err = get_last_error_string();
+        LOG_F(INFO,"failed to hash password: %s", err.c_str());
         exit(-1);
     }
     HCRYPTKEY key;
     if (!CryptDeriveKey(context, CALG_RC4, hash, 0, &key)) {
-        printf(" >> Failed to derive key from password hash\n");
+        std::string err = get_last_error_string();
+        LOG_F(ERROR,"failed to derive key from password hash: %s", err.c_str());
         exit(-1);
     }
     return key;
@@ -452,7 +453,8 @@ char *smart_export_key(HCRYPTKEY key, DWORD blobtype, size_t *out_size, HCRYPTKE
     CryptExportKey(key, expKey,blobtype, 0, NULL,&size);
     BYTE *out = (BYTE *)calloc(size, sizeof(BYTE));
     if (!CryptExportKey(key, expKey,blobtype, 0, out,&size)) {
-         printf(" >> smart_export_key failed to export key\n");
+        std::string err = get_last_error_string();
+        LOG_F(ERROR," >> smart_export_key failed to export key: %s", err.c_str());
         exit(-1);
     }
 
@@ -494,7 +496,7 @@ std::string hex_string(char *data, int len) {
 }
 
 keys_blob *load_keys_blob(char *prefix) {
-    printf(" > loading keys blobs for prefix: %s\n", prefix);
+    LOG_F(INFO,"loading keys blobs for prefix: %s", prefix);
     keys_blob *keys = new keys_blob;
     std::string base = std::string(prefix);
     std::string pub_name = base + "pub";
@@ -502,7 +504,7 @@ keys_blob *load_keys_blob(char *prefix) {
     std::string crypt_name = base + "crypt";
 
     if (HasFile(pub_name.c_str())) {
-        printf(" > loading public key: %s\n", pub_name.c_str());
+        LOG_F(INFO,"loading public key: %s", pub_name.c_str());
         FILE *f = fopen(pub_name.c_str(), "rb");
         fseek(f, 0, SEEK_END);
         keys->pub_key_size = ftell(f);
@@ -513,7 +515,7 @@ keys_blob *load_keys_blob(char *prefix) {
     }
 
     if (HasFile(priv_name.c_str())) {
-        printf(" > loading privvate key: %s\n", priv_name.c_str());
+        LOG_F(INFO,"loading private key: %s", priv_name.c_str());
         FILE *f = fopen(priv_name.c_str(), "rb");
         fseek(f, 0, SEEK_END);
         keys->priv_key_size = ftell(f);
@@ -524,7 +526,7 @@ keys_blob *load_keys_blob(char *prefix) {
     }
 
     if (HasFile(crypt_name.c_str())) {
-        printf(" > loading crypt key: %s\n", crypt_name.c_str());
+        LOG_F(INFO," > loading crypt key: %s", crypt_name.c_str());
         FILE *f = fopen(crypt_name.c_str(), "rb");
         fseek(f, 0, SEEK_END);
         keys->crypt_blob_size = ftell(f);
@@ -544,33 +546,21 @@ bool make_code_accessors(char *password) {
     */
     HCRYPTKEY pkey = generate_key_from_password(password, ctx->context);
     HCRYPTKEY sig;
-    printf(" >> beginning generation of signing keys\n");
+    LOG_F(INFO,"beginning generation of signing keys");
     if (!CryptGenKey(ctx->context, AT_SIGNATURE, SIGLEN << 16 | CRYPT_EXPORTABLE, &sig)) {
-        printf(" >> failed to generate signing key pair\n");
+        std::string err = get_last_error_string();
+        LOG_F(ERROR, " >> failed to generate signing key pair: %s", err.c_str());
         return false;
     }
     size_t pub_key_size = 0;
     size_t priv_key_size = 0;
     keys_blob *keys = new keys_blob;
 
-    printf(" >> exporting public key..\n");
+    LOG_F(INFO,"exporting public key..");
     keys->pub_key = smart_export_key(sig, PUBLICKEYBLOB, &keys->pub_key_size, NULL);
-    printf(" >> exporting private key..\n");
+    LOG_F(INFO,"exporting private key..");
     keys->priv_key = smart_export_key(sig, PRIVATEKEYBLOB, &keys->priv_key_size, pkey);
 
-    /*
-    Currently we can't use our own crypt key - the client is failing to accept it for unknown reasons
-     HCRYPTKEY crypt;
-    if (!CryptGenKey(ctx->context, CALG_3DES, CRYPTLEN << 16 | CRYPT_EXPORTABLE, &crypt)) {
-        printf(" >> failed to generate crypt key\n");
-        return false;
-    }
-    size_t crypt_blob_size = 0;
-    char *crypt_blob = export_plain_session_blob(crypt, &crypt_blob_size);
-     */
-
-    size_t crypt_blob_size = 0;
-    char *crypt_blob = NULL;
     keys->dump(EVECC_ROAMING_KEYS);
     return true;
 }
@@ -580,30 +570,47 @@ keys_blob::keys_blob() {
 }
 
 void keys_blob::dump(char *prefix) {
-    printf(" > dumping keys with prefix: %s\n", prefix);
+    LOG_F(INFO,"dumping keys with prefix: %s", prefix);
     std::string base = std::string(prefix);
     std::string pub_filename = base + "pub";
     std::string priv_filename = base + "priv";
     std::string crypt_filename = base + "crypt";
     if (pub_key != NULL) {
-        printf(" >> dumping public key: %s\n", pub_filename.c_str());
+        LOG_F(INFO,"dumping public key: %s", pub_filename.c_str());
         FILE *f = fopen(pub_filename.c_str(), "wb");
         fwrite(pub_key, pub_key_size, 1, f);
         fflush(f);
         fclose(f);
     }
     if (this->priv_key != NULL) {
-        printf(" >> dumping private key: %s\n", priv_filename.c_str());
+        LOG_F(INFO,"dumping private key: %s", priv_filename.c_str());
         FILE *f = fopen(priv_filename.c_str(), "wb");
         fwrite(this->priv_key, this->priv_key_size, 1, f);
         fflush(f);
         fclose(f);
     }
     if (this->crypt_blob != NULL) {
-        printf(" >> dumping crypt key: %s\n", crypt_filename.c_str());
+        LOG_F(INFO,"dumping crypt key: %s", crypt_filename.c_str());
         FILE *f = fopen(crypt_filename.c_str(), "wb");
         fwrite(this->crypt_blob, this->crypt_blob_size, 1, f);
         fflush(f);
         fclose(f);
     }
+}
+
+CryptKeyType parse_key_type(char *type) {
+    if (type == NULL) {
+        return CRYPTKEY_ROAMING;
+    }
+    int i = 0;
+    while (true) {
+        if (key_types[i] == NULL) {
+            break;
+        }
+        if (strcmp(key_types[i], type) == 0) {
+            return (CryptKeyType)i;
+        }
+        i++;
+    }
+    return CRYPTKEY_ROAMING;
 }

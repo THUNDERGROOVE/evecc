@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <string>
 
 template <typename T, size_t N>
 constexpr size_t countof(T(&)[N]) {
@@ -30,3 +31,4 @@ void *memmem(const void *l, size_t l_len, const void *s, size_t s_len);
 wchar_t* chartow(const char* text);
 int hctoi(const char h);
 const char *str_ext(const char *filename);
+std::string get_last_error_string();

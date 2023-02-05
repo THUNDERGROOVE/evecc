@@ -1,6 +1,8 @@
+#include "util.h"
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <Windows.h>
 
 const char *str_ext(const char *filename) {
 	const char *dot = strrchr(filename, '.');
@@ -44,6 +46,20 @@ wchar_t* chartow(const char* text)
 	wchar_t* wa = (wchar_t *)calloc(size, sizeof(wchar_t));
 	mbstowcs(wa, text, size);
 	return wa;
+}
+
+std::string get_last_error_string() {
+    DWORD err = GetLastError();
+    if (err == 0) {
+        return std::string();
+    }
+
+    LPSTR buf = NULL;
+    size_t size = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                                 NULL, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), (LPSTR)&buf, 0, NULL);
+    std::string message(buf, size);
+    LocalFree(buf);
+    return message;
 }
 
 /*
