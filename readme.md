@@ -27,7 +27,7 @@ set BP=C:\path\to\client\code
 evecc.exe --compilecode -o compiled.code -I %BP%\carbon\client -I %BP%\carbon\common -I %BP%\eve\common -I %BP%\eve\client
 ```
 
-## building evvecc
+## building evecc
 1. install Visual Studio Installer
 2. in the Visual Studio Installer, install the following
    1. `.NET framework 4.7.2 SDK`
