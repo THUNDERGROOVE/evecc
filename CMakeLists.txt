@@ -1,6 +1,6 @@
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.20)
 
-option(SKIP_AUTOMATE_VCPKG "When ON, you will need to built the packages required by eveloader2 on \
+option(SKIP_AUTOMATE_VCPKG "When ON, you will need to built the packages required by evecc on \
 your own or supply your own vcpkg toolchain.")
 
 if (NOT SKIP_AUTOMATE_VCPKG)
@@ -31,8 +31,8 @@ set(evecc_src
 
 add_executable(evecc ${evecc_src})
 
-find_package(ZLIB REQUIRED)
-target_link_libraries(evecc PRIVATE ZLIB::ZLIB)
+target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/")
+#target_link_libraries(evecc PRIVATE ZLIB::ZLIB)
 
 find_package(Python2 COMPONENTS Development)
 target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/python2.7/")

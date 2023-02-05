@@ -7,7 +7,7 @@
 #include <string.h>
 
 
-#include <zlib.h>
+#include "zlib.h"
 
 BOOL CreatePrivateExponentOneKey(LPTSTR szProvider,
 	DWORD dwProvType,

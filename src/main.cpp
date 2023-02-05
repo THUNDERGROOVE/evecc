@@ -26,6 +26,7 @@ int cmd_genkey();
 #pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "OleAut32.lib")
 #pragma comment(lib, "Ole32.lib")
+#pragma comment(lib, "zlib.lib")
 
 #include "scripts.h"
 #include "util.h"
