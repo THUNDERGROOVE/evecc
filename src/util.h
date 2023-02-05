@@ -24,6 +24,8 @@ struct PyPacket {
 };
 #pragma pack()
 
+#define HasFile(name) !(INVALID_FILE_ATTRIBUTES == GetFileAttributes(name) && GetLastError() == ERROR_FILE_NOT_FOUND)
+
 void *memmem(const void *l, size_t l_len, const void *s, size_t s_len);
 wchar_t* chartow(const char* text);
 int hctoi(const char h);

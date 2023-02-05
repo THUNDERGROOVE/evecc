@@ -28,6 +28,7 @@ int cmd_genkey();
 #pragma comment(lib, "Ole32.lib")
 
 #include "scripts.h"
+#include "util.h"
 
 #include <iostream>
 #include <chrono>
@@ -215,7 +216,58 @@ CryptKeyType parse_key_type(char *type) {
 }
 
 
+#define RSA_PUB "\x06\x02\x00\x00\x00\x24\x00\x00\x52\x53\x41\x31"
+#define RSA_LEN 0x94
+#define TDES_SIG "\x01\x02\x00\x00\x03\x66\x00\x00\x00\xA4\x00\x00"
+#define TDES_LEN 0x8C
+int cmd_dumpkeys(char *file) {
+    FILE *f = fopen(file, "rb");
+    if (f == NULL) {
+        printf("could not open input file: %s\n", file);
+        return -1;
+    }
+    fseek(f, 0, SEEK_END);
+    int size = ftell(f);
+    rewind(f);
+    char *buf = (char *)malloc(size);
+    char *rewind = buf;
+    fread(buf, sizeof(char), size, f);
+    fclose(f);
+
+
+    keys_blob *keys = new keys_blob;
+    keys->pub_key = (char *)calloc(RSA_LEN, sizeof(char));
+    keys->crypt_blob  = (char *)calloc(TDES_LEN, sizeof(char));
+
+    printf(" >>> scanning for RSA public key\n");
+    char *ptr = (char *)memmem(buf, size, RSA_PUB, sizeof(RSA_PUB));
+    if (ptr == NULL) {
+        printf(" >> could not find RSA_PUB in input file: %s\n", file);
+        return -2;
+    }
+    buf = rewind;
+    printf(" >>>> found!\n");
+    memcpy(keys->pub_key, ptr, RSA_LEN);
+    keys->pub_key_size = RSA_LEN;
+
+    printf(" >>> scanning for 3DES crypt key\n");
+    ptr = (char *)memmem(buf, size, TDES_SIG, sizeof(TDES_SIG)-2);
+    if (ptr == NULL) {
+        printf(" >> could not find TDES_SIG in input file: %s\n", file);
+        return -3;
+    }
+    printf(" >>>> found!\n");
+    memcpy(keys->crypt_blob, ptr, TDES_LEN);
+    keys->crypt_blob_size = TDES_LEN;
+
+    keys->dump(CCP_KEYS);
+    return 0;
+}
+
 int main(int argc, char **argv) {
+    if (!HasFile("C:\\Python27\\Python.exe")) {
+        printf(" >> EVECC depends on a local Python installation.  Please install the latest version of Python 2.7 and use the default installation path of C:\\Python27\\");
+    }
 	Py_SetPythonHome("C:\\Python27\\");
 	Py_SetProgramName(argv[0]);
 	Py_Initialize();
@@ -238,64 +290,60 @@ int main(int argc, char **argv) {
 
     bool is_genkey = has_argument("--gen-key");
 
-    if (kt != CRYPTKEY_NO_CRYPTO) {
-        if (!is_genkey) {
-            int status = init_cryptcontext(password);
-            set_password(password);
-            if (status != 0) {
-                printf(" >>> failed to initialize crypt context\n");
-                return -1;
-            }
-
-            ctx->set_key_type = parse_key_type(key_type);
-            printf(" >> key type set to: %s\n", key_types[ctx->set_key_type]);
-        } else {
-            int status = init_cryptcontext_gen(password);
-            set_password(password);
-
-            if (status != 0) {
-                printf(" >>> failed to initialize crypt context\n");
-                return -1;
-            }
-        }
-    } else {
-        ctx = new CryptContext;
-        ctx->set_key_type = kt;
+    if (!is_genkey) {
+        int status = init_cryptcontext(password);
         set_password(password);
+        if (status != 0) {
+            printf(" >>> failed to initialize crypt context\n");
+            return -1;
+        }
+
+        ctx->set_key_type = parse_key_type(key_type);
+        printf(" >> key type set to: %s\n", key_types[ctx->set_key_type]);
+    } else {
+        int status = init_cryptcontext_gen(password);
+        set_password(password);
+
+        if (status != 0) {
+            printf(" >>> failed to initialize crypt context\n");
+            return -1;
+        }
     }
 
-	std::vector<std::string> input_files = parse_all_string_args("-I");
-	if (parse_argument("--dumpcode", &input_file)) {
+    std::vector<std::string> input_files = parse_all_string_args("-I");
+    if (parse_argument("--dumpcode", &input_file)) {
         return cmd_dumpcode(input_file, output_file);
     } else if (is_genkey) {
         return cmd_genkey(password);
+    } else if (parse_argument("--dump-keys", &input_file)) {
+        return cmd_dumpkeys(input_file);
     } else if (has_argument("--check-keys")) {
-	} else if (parse_argument("--dumplib", &input_file)) {
-		return cmd_dumplib(input_file, output_file);
-	} else if (parse_argument("--compilecode", &input_file)) {
-		return cmd_compilecode(input_files, output_file);
-	} else if (parse_argument("--compilelib", &input_file)) {
-		return cmd_compilelib(input_file, output_file);
-	} else if (parse_argument("--unpyj", &input_file)) {
-		cmd_unpyj(input_file, output_file);
-	} else if (parse_argument("--console", &input_file)) {
-		PyRun_SimpleString("import code\ncode.interact()");
-	} else if (parse_argument("--script", &input_file)) {
-		if (input_file == NULL) {
-			printf("input file must be supplied\n");
-			return 0;
-		}
-		FILE *f = fopen(input_file, "r");
-		if (f == NULL) {
-			printf("input file was not valid!\n");
-			return 0;
-		}
-		PyRun_SimpleFile(f, "input_file");
-		fclose(f);
-	} else {
-		return cmd_help();
-	}
+    } else if (parse_argument("--dumplib", &input_file)) {
+        return cmd_dumplib(input_file, output_file);
+    } else if (parse_argument("--compilecode", &input_file)) {
+        return cmd_compilecode(input_files, output_file);
+    } else if (parse_argument("--compilelib", &input_file)) {
+        return cmd_compilelib(input_file, output_file);
+    } else if (parse_argument("--unpyj", &input_file)) {
+        cmd_unpyj(input_file, output_file);
+    } else if (parse_argument("--console", &input_file)) {
+        PyRun_SimpleString("import code\ncode.interact()");
+    } else if (parse_argument("--script", &input_file)) {
+        if (input_file == NULL) {
+            printf("input file must be supplied\n");
+            return 0;
+        }
+        FILE *f = fopen(input_file, "r");
+        if (f == NULL) {
+            printf("input file was not valid!\n");
+            return 0;
+        }
+        PyRun_SimpleFile(f, "input_file");
+        fclose(f);
+    } else {
+        return cmd_help();
+    }
 
-	Py_Finalize();
-	return 0;
+    Py_Finalize();
+    return 0;
 }

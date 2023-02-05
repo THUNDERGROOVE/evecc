@@ -5,17 +5,16 @@
 #include <stdint.h>
 
 #define EVECC_ROAMING_KEYS "evecc.keys."
+#define CCP_KEYS "ccp.keys."
 
 enum CryptKeyType {
 	CRYPTKEY_CCP,
     CRYPTKEY_ROAMING,
-    CRYPTKEY_NO_CRYPTO,
 };
 
 static char *key_types[] = {
         "ccp",
         "roaming",
-        "no_crypto",
         NULL,
 };
 struct keys_blob {
@@ -25,6 +24,8 @@ struct keys_blob {
     size_t pub_key_size;
     size_t priv_key_size;
     size_t crypt_blob_size;
+    keys_blob();
+    void dump(char *prefix);
 };
 
 struct CryptContext {
@@ -38,6 +39,8 @@ struct CryptContext {
     keys_blob *roaming_keys;
     HCRYPTKEY roaming_priv;
     HCRYPTKEY roaming_pub;
+    keys_blob *ccp_keys;
+    HCRYPTKEY ccp_crypt_key;
 };
 
 extern CryptContext *ctx;
@@ -54,6 +57,6 @@ char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes,
 bool make_code_accessors(char *password, char *keyFile);
 char *smart_export_key(HCRYPTKEY key, DWORD blobtype, size_t *out_size, HCRYPTKEY expKey);
 bool import_keys(char *password);
-keys_blob *load_keys_ini();
+keys_blob *load_keys_blob(char *prefix);
 bool make_code_accessors(char *password);
 HCRYPTKEY generate_key_from_password(char *password, HCRYPTPROV context);

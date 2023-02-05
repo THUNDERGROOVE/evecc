@@ -1,4 +1,5 @@
 #include "bluecrypto.h"
+#include "util.h"
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -128,7 +129,7 @@ HCRYPTKEY CryptContext::GetKey(CryptKeyType type) {
 		return this->ccp_key;
 		break;
     case CRYPTKEY_ROAMING:
-        return this->roaming_crypt_key;
+        return this->ccp_crypt_key;
 	default:
 		return NULL;
 		break;
@@ -178,47 +179,9 @@ int init_cryptcontext(char *password) {
 	return 0;
 }
 
-static unsigned char codeCryptKey_orig[] =
-        {
-                0x01, 0x02, 0x00, 0x00, 0x03, 0x66, 0x00, 0x00, 0x00, 0xA4,
-                0x00, 0x00, 0x07, 0x83, 0x08, 0x07, 0xCD, 0x10, 0x10, 0xF8,
-                0xF8, 0xE0, 0x5E, 0xB3, 0x91, 0x68, 0x5D, 0xE3, 0x43, 0x25,
-                0xF7, 0x4A, 0xA2, 0x52, 0x10, 0x57, 0x00, 0xD6, 0x8F, 0x94,
-                0x68, 0x08, 0xAE, 0x04, 0x2C, 0xD8, 0xAE, 0x8B, 0x07, 0xAF,
-                0x7C, 0x95, 0x78, 0x6B, 0x3C, 0x2B, 0x79, 0x87, 0x12, 0xDA,
-                0x20, 0x4D, 0xD8, 0x10, 0x94, 0x71, 0x6C, 0xD6, 0xF7, 0x31,
-                0x12, 0x4B, 0x2B, 0x13, 0xD3, 0x8E, 0x67, 0x63, 0xBE, 0xA5,
-                0x62, 0x2D, 0x3F, 0x52, 0x8D, 0x7C, 0x5F, 0xE8, 0x58, 0xB6,
-                0xBD, 0xDE, 0xDC, 0x8F, 0x58, 0xB8, 0xD4, 0xFA, 0xB2, 0xDE,
-                0xFA, 0xCE, 0x66, 0x9A, 0xA8, 0x39, 0x14, 0x9B, 0xF0, 0x3A,
-                0x8D, 0xCA, 0x41, 0x90, 0x39, 0x68, 0x27, 0xC9, 0x94, 0xBA,
-                0xE1, 0x40, 0xAA, 0x79, 0x0B, 0x76, 0x2F, 0xCB, 0x70, 0x7F,
-                0x8D, 0x0A, 0x37, 0xED, 0x43, 0x9E, 0x94, 0x83, 0x02, 0x00
-        };
-
-void setup_signing_context() {
-
-}
-
 bool import_keys(char *password) {
-
-
-//	if (!CryptImportKey(ctx->context, (BYTE*)codeCryptKey_orig, 140, priv, 0, &key)) {
-//		printf(" >> Failed loading crypt key\n");
-//		DWORD err = GetLastError();
-//        return false;
-//	}
-
-#define HasFile(name) !(INVALID_FILE_ATTRIBUTES == GetFileAttributes(name) && GetLastError() == ERROR_FILE_NOT_FOUND)
-    if(HasFile(EVECC_ROAMING_KEYS"pub") && HasFile(EVECC_ROAMING_KEYS"priv")/* && HasFile(EVECC_ROAMING_KEYS"crypt")*/) {
-//        if (password == NULL) {
-//            printf("To use roaming keys, you must supply the password used to generate them --password <password>");
-//            exit(-1);
-//        }
-        // we have EVECC_ROAMING_KEYS available
-        printf(" >> roaming keys %s found, loading this as well!\n", EVECC_ROAMING_KEYS);
-        ctx->roaming_keys = load_keys_ini();
-
+    if(HasFile(CCP_KEYS"crypt")) {
+        ctx->ccp_keys = load_keys_blob(CCP_KEYS);
         HCRYPTKEY priv = NULL;
         if (!CreatePrivateExponentOneKey(MS_ENHANCED_PROV, PROV_RSA_FULL, NULL, AT_KEYEXCHANGE, &ctx->context, &priv)) {
             printf(" >> Failed generating exp 1 crypt key\n");
@@ -226,11 +189,15 @@ bool import_keys(char *password) {
             return false;
         }
 
-        if (!CryptImportKey(ctx->context, (BYTE*)codeCryptKey_orig, 140, priv, 0, &ctx->roaming_crypt_key)) {
+        if (!CryptImportKey(ctx->context, (BYTE *)ctx->ccp_keys->crypt_blob, ctx->ccp_keys->crypt_blob_size, priv, 0, &ctx->ccp_crypt_key)) {
             printf(" >> Failed loading crypt key\n");
             DWORD err = GetLastError();
             return false;
         }
+    }
+    if(HasFile(EVECC_ROAMING_KEYS"pub") && HasFile(EVECC_ROAMING_KEYS"priv")) {
+        printf(" >> roaming keys %s found, loading this as well!\n", EVECC_ROAMING_KEYS);
+        ctx->roaming_keys = load_keys_blob(EVECC_ROAMING_KEYS);
 
         HCRYPTKEY pkey = generate_key_from_password(password, ctx->context);
 
@@ -240,17 +207,11 @@ bool import_keys(char *password) {
             return false;
         }
 
-
-
         if (!CryptImportKey(ctx->context, (BYTE*)ctx->roaming_keys->priv_key, 596, pkey, 0, &ctx->roaming_priv)) {
             printf(" >> Failed loading private key\n");
             GetLastError();
             return false;
         }
-
-
-
-        setup_signing_context();
     } else {
         printf(" !! no keys\n");
         exit(-11);
@@ -261,10 +222,6 @@ bool import_keys(char *password) {
 }
 
 char *SignData(char *data, uint32_t data_size, uint32_t *out_size, char *password) {
-    if (ctx->set_key_type == CRYPTKEY_NO_CRYPTO) {
-        return strdup("lol eat butt");
-    }
-
     HCRYPTPROV context = NULL;
     if (!CryptAcquireContextA(&context, NULL, MS_ENHANCED_PROV, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
         exit(1);
@@ -355,11 +312,6 @@ char *JumbleString(const char *input, uint32_t input_size, uint32_t *read_bytes,
 		//inflateEnd(&info);
 	}
 
-    if (ctx->set_key_type == CRYPTKEY_NO_CRYPTO) {
-        *read_bytes = total_out;
-        return tmp_out;
-    }
-
 	uint32_t encrypted_size = total_out;
     HCRYPTKEY key = ctx->GetKey(key_type);
 	if (!CryptEncrypt(key, 0, true, 0, NULL, (DWORD *)&total_out, total_out)) {
@@ -420,11 +372,6 @@ void ErrorExit(LPTSTR lpszFunction) {
 uint32_t
 UnjumbleString(const char *input, uint32_t input_size, char *output, uint32_t output_size, CryptKeyType key_type,
                bool zip) {
-
-    if (ctx->set_key_type == CRYPTKEY_NO_CRYPTO) {
-        memcpy(output, input, input_size);
-        return input_size;
-    }
 
 	char *real_input = (char *)calloc(1, input_size);
 	memcpy(real_input, input, input_size);
@@ -546,56 +493,46 @@ std::string hex_string(char *data, int len) {
     return ss.str();
 }
 
-
-bool write_keys_ini(char *pub_key, size_t pub_key_size, char *priv_key, size_t priv_key_size, char *crypt_blob, size_t crypt_blob_size) {
-    FILE *f = fopen(EVECC_ROAMING_KEYS"pub", "wb");
-    fwrite(pub_key, pub_key_size, 1, f);
-    fflush(f);
-    fclose(f);
-
-    f = fopen(EVECC_ROAMING_KEYS"priv", "wb");
-    fwrite(priv_key, priv_key_size, 1, f);
-    fflush(f);
-    fclose(f);
-    /*
-    f = fopen(EVECC_ROAMING_KEYS"crypt", "wb");
-    fwrite(crypt_blob, crypt_blob_size, 1, f);
-    fflush(f);
-    fclose(f);
-     */
-
-    return true;
-}
-
-keys_blob *load_keys_ini() {
+keys_blob *load_keys_blob(char *prefix) {
+    printf(" > loading keys blobs for prefix: %s\n", prefix);
     keys_blob *keys = new keys_blob;
+    std::string base = std::string(prefix);
+    std::string pub_name = base + "pub";
+    std::string priv_name = base + "priv";
+    std::string crypt_name = base + "crypt";
 
+    if (HasFile(pub_name.c_str())) {
+        printf(" > loading public key: %s\n", pub_name.c_str());
+        FILE *f = fopen(pub_name.c_str(), "rb");
+        fseek(f, 0, SEEK_END);
+        keys->pub_key_size = ftell(f);
+        rewind(f);
+        keys->pub_key = (char *) calloc(keys->pub_key_size, sizeof(char));
+        fread(keys->pub_key, keys->pub_key_size, sizeof(char), f);
+        fclose(f);
+    }
 
-    FILE *f = fopen(EVECC_ROAMING_KEYS"pub", "rb");
-    fseek(f, 0, SEEK_END);
-    keys->pub_key_size = ftell(f);
-    rewind(f);
-    keys->pub_key = (char *)calloc(keys->pub_key_size, sizeof(char));
-    fread(keys->pub_key, keys->pub_key_size, sizeof(char), f);
-    fclose(f);
+    if (HasFile(priv_name.c_str())) {
+        printf(" > loading privvate key: %s\n", priv_name.c_str());
+        FILE *f = fopen(priv_name.c_str(), "rb");
+        fseek(f, 0, SEEK_END);
+        keys->priv_key_size = ftell(f);
+        rewind(f);
+        keys->priv_key = (char *) calloc(keys->priv_key_size, sizeof(char));
+        fread(keys->priv_key, keys->priv_key_size, sizeof(char), f);
+        fclose(f);
+    }
 
-    f = fopen(EVECC_ROAMING_KEYS"priv", "rb");
-    fseek(f, 0, SEEK_END);
-    keys->priv_key_size= ftell(f);
-    rewind(f);
-    keys->priv_key = (char *)calloc(keys->priv_key_size, sizeof(char));
-    fread(keys->priv_key, keys->priv_key_size, sizeof(char), f);
-    fclose(f);
-
-    /*
-    f = fopen(EVECC_ROAMING_KEYS"crypt", "rb");
-    fseek(f, 0, SEEK_END);
-    keys->crypt_blob_size = ftell(f);
-    rewind(f);
-    keys->crypt_blob = (char *)calloc(keys->crypt_blob_size, sizeof(char));
-    fread(keys->crypt_blob, keys->crypt_blob_size, sizeof(char), f);
-    fclose(f);
-     */
+    if (HasFile(crypt_name.c_str())) {
+        printf(" > loading crypt key: %s\n", crypt_name.c_str());
+        FILE *f = fopen(crypt_name.c_str(), "rb");
+        fseek(f, 0, SEEK_END);
+        keys->crypt_blob_size = ftell(f);
+        rewind(f);
+        keys->crypt_blob = (char *)calloc(keys->crypt_blob_size, sizeof(char));
+        fread(keys->crypt_blob, keys->crypt_blob_size, sizeof(char), f);
+        fclose(f);
+    }
 
     return keys;
 }
@@ -614,10 +551,12 @@ bool make_code_accessors(char *password) {
     }
     size_t pub_key_size = 0;
     size_t priv_key_size = 0;
+    keys_blob *keys = new keys_blob;
+
     printf(" >> exporting public key..\n");
-    char *pub_key = smart_export_key(sig, PUBLICKEYBLOB, &pub_key_size, NULL);
+    keys->pub_key = smart_export_key(sig, PUBLICKEYBLOB, &keys->pub_key_size, NULL);
     printf(" >> exporting private key..\n");
-    char *priv_key = smart_export_key(sig, PRIVATEKEYBLOB, &priv_key_size, pkey);
+    keys->priv_key = smart_export_key(sig, PRIVATEKEYBLOB, &keys->priv_key_size, pkey);
 
     /*
     Currently we can't use our own crypt key - the client is failing to accept it for unknown reasons
@@ -632,6 +571,39 @@ bool make_code_accessors(char *password) {
 
     size_t crypt_blob_size = 0;
     char *crypt_blob = NULL;
+    keys->dump(EVECC_ROAMING_KEYS);
+    return true;
+}
 
-    return write_keys_ini(pub_key, pub_key_size, priv_key, priv_key_size, crypt_blob, crypt_blob_size);
+keys_blob::keys_blob() {
+    memset(this, 0, sizeof(*this));
+}
+
+void keys_blob::dump(char *prefix) {
+    printf(" > dumping keys with prefix: %s\n", prefix);
+    std::string base = std::string(prefix);
+    std::string pub_filename = base + "pub";
+    std::string priv_filename = base + "priv";
+    std::string crypt_filename = base + "crypt";
+    if (pub_key != NULL) {
+        printf(" >> dumping public key: %s\n", pub_filename.c_str());
+        FILE *f = fopen(pub_filename.c_str(), "wb");
+        fwrite(pub_key, pub_key_size, 1, f);
+        fflush(f);
+        fclose(f);
+    }
+    if (this->priv_key != NULL) {
+        printf(" >> dumping private key: %s\n", priv_filename.c_str());
+        FILE *f = fopen(priv_filename.c_str(), "wb");
+        fwrite(this->priv_key, this->priv_key_size, 1, f);
+        fflush(f);
+        fclose(f);
+    }
+    if (this->crypt_blob != NULL) {
+        printf(" >> dumping crypt key: %s\n", crypt_filename.c_str());
+        FILE *f = fopen(crypt_filename.c_str(), "wb");
+        fwrite(this->crypt_blob, this->crypt_blob_size, 1, f);
+        fflush(f);
+        fclose(f);
+    }
 }
