@@ -1,4 +1,4 @@
-//#define Py_NO_ENABLE_SHARED
+#define Py_NO_ENABLE_SHARED
 #include <corecrt.h>
 
 #include "commands.h"
@@ -17,7 +17,7 @@
 #pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "OleAut32.lib")
 #pragma comment(lib, "Ole32.lib")
-#pragma comment(lib, "zlib.lib")
+//#pragma comment(lib, "zlib.lib")
 
 #include "util.h"
 #include "loguru/loguru.hpp"
@@ -71,9 +71,11 @@ int main(int argc, char **argv) {
         LOG_F(ERROR, "EVECC depends on a local Python installation.  Please install the latest version of Python 2.7 and use the default installation path of C:\\Python27\\");
         return -1;
     }
-	Py_SetPythonHome("C:\\Python27\\");
+	Py_SetPythonHome("./Python");
 	Py_SetProgramName(argv[0]);
 	Py_Initialize();
+
+    PySys_SetPath("./Python/Lib;./Python/Lib/site-packages;");
 
 	LOG_F(INFO,"EVECC booting");
 	LOG_F(INFO,"Initializing blue...");
@@ -121,8 +123,8 @@ int main(int argc, char **argv) {
     } else if (parse_argument("--dump-keys", &input_file)) {
         return cmd_dumpkeys(input_file);
     } else if (has_argument("--check-keys")) {
-    } else if (parse_argument("--dumplib", &input_file)) {
-        return cmd_dumplib(input_file, output_file);
+    } else if (parse_argument("--dumpcode", &input_file)) {
+        return cmd_dumpcode(input_file, output_file);
     } else if (parse_argument("--compilecode", &input_file)) {
         return cmd_compilecode(input_files, output_file);
     } else if (parse_argument("--compilelib", &input_file)) {

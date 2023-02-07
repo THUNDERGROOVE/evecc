@@ -7,11 +7,33 @@
 #include "util.h"
 
 #include "scripts.h"
+#include "Python.h"
 
 using namespace std::chrono;
 
 int cmd_dumpcode(char *input_file, char *output_file) {
-    // @TODO: This
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
+    PyGILState_STATE s = PyGILState_Ensure();
+    PyObject *main = PyImport_AddModule("__main__");
+    if (input_file == NULL || output_file == NULL) {
+        return -1;
+    }
+
+    PyObject *o = PyString_FromString(output_file);
+    PyObject_SetAttrString(main, "output_path", o);
+
+    PyObject *i = PyString_FromString(input_file);
+    PyObject_SetAttrString(main, "input_path", i);
+
+    int r = PyRun_SimpleString(uncompile_code_script);
+
+    PyGILState_Release(s);
+
+    high_resolution_clock::time_point t2 = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(t2 - t1).count();
+    std::cout << "Dumped codefile in " << duration << "us\n";
+    fflush(stdout);
+
     return 0;
 }
 

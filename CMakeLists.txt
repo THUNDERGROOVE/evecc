@@ -7,7 +7,7 @@ if (NOT SKIP_AUTOMATE_VCPKG)
     include(cmake/automate-vcpkg.cmake)
 
     vcpkg_bootstrap()
-    vcpkg_install_packages(loguru python2 zlib)
+    vcpkg_install_packages(loguru python2)
 endif()
 
 project(evecc)
@@ -33,11 +33,17 @@ add_executable(evecc ${evecc_src})
 
 target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/")
 #target_link_libraries(evecc PRIVATE ZLIB::ZLIB)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/extra/python-cmake-buildsystem/cmake-build-debug/include")
+    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/extra/python-cmake-buildsystem/cmake-build-debug/bin/PC")
+    target_link_directories(evecc PUBLIC "${CMAKE_SOURCE_DIR}/extra/python-cmake-buildsystem/cmake-build-debug/static-libs")
+else()
+    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/extra/python-cmake-buildsystem/cmake-build-release/include")
+    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/extra/python-cmake-buildsystem/cmake-build-release/bin/PC")
+    target_link_directories(evecc PRIVATE "${CMAKE_SOURCE_DIR}/extra/python-cmake-buildsystem/cmake-build-release/static-lib")
+endif()
 
-find_package(Python2 COMPONENTS Development)
-target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/python2.7/")
-
-target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include" "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}/src/")
+target_include_directories(evecc PUBLIC SYSTEM  "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include" "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}/src/")
 target_link_directories(evecc PRIVATE "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" )
 
 add_custom_target(evecc_release_zip COMMAND
@@ -48,4 +54,5 @@ add_custom_target(evecc_release_zip COMMAND
         "${CMAKE_CURRENT_SOURCE_DIR}/readme.md"
         )
 
-
+add_custom_target(copy_python_lib)
+#add_custom_command(TARGET copy_python_lib PRE_BUILD COMMAND ${CMAKE_COMMAND} -E copy "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/share/python2/Lib/" ${CMAKE_CURRENT_BINARY_DIR}/Python/Lib/)

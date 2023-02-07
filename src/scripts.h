@@ -1,5 +1,71 @@
 #pragma once
 
+static const char *uncompile_code_script = R"ADFAAF(
+import blue
+import zipfile
+import zlib
+import os
+import marshal
+
+import uncompyle6
+import shutil
+import cPickle
+
+def unpack(name):
+    print "Unpacking " + name
+    f = open(name, "rb")
+    magic, all, signature = cPickle.load(f)
+    codes = cPickle.loads(all)['code']
+    for (filename, type), (encrypted_code, order) in codes:
+        data = blue.UnjumbleString(encrypted_code, True)
+        code = marshal.loads(data)
+        filename = code.co_filename[48:]
+        print filename + " : " + type + " | " + str(order)
+        out_filename = "tmp_out/" + os.path.splitext(filename)[0] + ".py"
+        try:
+            os.makedirs(os.path.dirname(out_filename))
+        except:
+            pass
+        ff = open(out_filename, "wb")
+        try:
+            uncompyle6.main.decompile(code, out=ff)
+        except Exception as e:
+            print "Failed to decompile file "
+            print e
+            ff.close()
+            os.remove(out_filename)
+        #ff.write(data)
+        ff.close()
+    print signature.encode("hex")
+    f.close()
+
+def decomp(name):
+    for root, dirs, files in os.walk(name):
+        for file in files:
+            path = os.path.join(root, file)
+            print " >> " + path
+            if os.path.splitext(file)[1] != ".pyo":
+                continue
+
+            print  "     | Opening output file"
+            f = open(os.path.splitext(path)[0] + ".py", "wb")
+            print  "     | uncompyling"
+            try:
+                uncompyle6.decompile_file(path, f)
+                print  "     | Done!"
+            except Exception as e:
+                print "**************************\n\n\n FAILED!!!!\n***********************************************\n\n"+str(e)+"\n\n"
+            f.close()
+            # os.remove(path)
+unpack(input_path)
+#decomp("tmp_out")
+try:
+    os.makedirs(output_path)
+except:
+    pass
+shutil.move("tmp_out", output_path)
+
+)ADFAAF";
 static const char *compile_lib_script = R"ADFAAF(
 import zipfile
 import os

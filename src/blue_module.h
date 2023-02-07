@@ -1,11 +1,6 @@
 #pragma once
 
-#ifdef _DEBUG
-#undef _DEBUG
-#include <Python.h>
-#define _DEBUG
-#endif
-
+#define Py_NO_ENABLE_SHARED
 #include "Python.h"
 
 PyMODINIT_FUNC initblue(void);

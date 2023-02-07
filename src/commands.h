@@ -11,13 +11,6 @@
 #include "loguru/loguru.hpp"
 #include <chrono>
 
-#ifdef _DEBUG
-#undef _DEBUG
-#include <Python.h>
-#define _DEBUG
-#endif
-
-
 #define RSA_PUB "\x06\x02\x00\x00\x00\x24\x00\x00\x52\x53\x41\x31"
 #define RSA_LEN 0x94
 #define TDES_SIG "\x01\x02\x00\x00\x03\x66\x00\x00\x00\xA4\x00\x00"

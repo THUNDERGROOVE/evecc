@@ -75,7 +75,7 @@ static PyMethodDef BlueMethods[] = {
 PyMODINIT_FUNC initblue(void) {
 	PyObject *m;
 
-	m = Py_InitModule("blue", BlueMethods);
+	m = Py_InitModule4("blue", BlueMethods, NULL, NULL, PYTHON_API_VERSION);
 	if (m == NULL)
 		return;
 }
