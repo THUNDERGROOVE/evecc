@@ -10,6 +10,8 @@
 #include "zlib.h"
 #include <loguru/loguru.hpp>
 
+#pragma comment(lib, "python27.lib")
+
 BOOL CreatePrivateExponentOneKey(LPTSTR szProvider,
 	DWORD dwProvType,
 	LPTSTR szContainer,

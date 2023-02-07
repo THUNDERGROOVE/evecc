@@ -40,8 +40,10 @@ if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 else()
     target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/include")
     target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/bin/PC")
-    target_link_directories(evecc PRIVATE "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/static-lib")
+    target_link_directories(evecc PRIVATE "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/static-libs")
 endif()
+
+target_link_libraries(evecc PRIVATE "python27.lib")
 
 target_include_directories(evecc PUBLIC SYSTEM  "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include" "${CMAKE_SOURCE_DIR}/include" "${CMAKE_SOURCE_DIR}/src/")
 target_link_directories(evecc PRIVATE "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib" )
@@ -54,7 +56,7 @@ add_custom_target(evecc_release_zip COMMAND
         )
 
 add_custom_target(copy_python_scripts COMMAND ${CMAKE_COMMAND} -E
-        copy_directory ${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-$<$<CONFIG:Debug>:Release>/Lib ${CMAKE_CURRENT_BINARY_DIR}/Python/Lib)
+        copy_directory ${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/Python-2.7.13/Lib ${CMAKE_CURRENT_BINARY_DIR}/Python/Lib)
 add_custom_target(zip_python_uncompyle2 COMMAND ${CMAKE_COMMAND} -E
         tar cvf ${CMAKE_CURRENT_BINARY_DIR}/Python/uncompyle2.zip --format=zip uncompyle2/ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/vendor/uncompyle2)
 
