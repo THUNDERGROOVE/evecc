@@ -1,0 +1,6 @@
+[submodule "vendor/python-cmake-buildsystem"]
+	path = vendor/python-cmake-buildsystem
+	url = https://github.com/python-cmake-buildsystem/python-cmake-buildsystem.git
+[submodule "vendor/uncompyle2"]
+	path = vendor/uncompyle2
+	url = https://github.com/wibiti/uncompyle2.git

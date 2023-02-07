@@ -1,12 +1,15 @@
 #define Py_NO_ENABLE_SHARED
 #include <corecrt.h>
+#include <iostream>
 
 #include "commands.h"
 #include "blue_module.h"
 #include "bluecrypto.h"
-//#include "buildno.h"
+#include "util.h"
+#include "loguru/loguru.hpp"
+#include "loguru/loguru.cpp"
 
-//#pragma comment(lib, "shared32.lib")
+
 #pragma comment(lib, "python27.lib")
 #pragma comment(lib, "Msi.lib")
 #pragma comment(lib, "ws2_32.lib")
@@ -17,13 +20,6 @@
 #pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "OleAut32.lib")
 #pragma comment(lib, "Ole32.lib")
-//#pragma comment(lib, "zlib.lib")
-
-#include "util.h"
-#include "loguru/loguru.hpp"
-#include "loguru/loguru.cpp"
-
-#include <iostream>
 
 static std::vector<std::string> parse_all_string_args(char *argument) {
 	std::vector<std::string> args;
@@ -61,21 +57,21 @@ static bool parse_argument(char *argument, char **value) {
 	return false;
 }
 
-
 #define LOG_PATH "evecc.log"
 
 int main(int argc, char **argv) {
     loguru::add_file(LOG_PATH, loguru::Truncate, loguru::Verbosity_INFO);
     loguru::g_colorlogtostderr = false;
-    if (!HasFile("C:\\Python27\\Python.exe")) {
-        LOG_F(ERROR, "EVECC depends on a local Python installation.  Please install the latest version of Python 2.7 and use the default installation path of C:\\Python27\\");
+    if (!HasFile("./Python/Lib") || !HasFile("./Python/uncompyle2.zip")) {
+        LOG_F(ERROR, "EVECC depends on a local Python scripts which are missing.");
         return -1;
     }
 	Py_SetPythonHome("./Python");
 	Py_SetProgramName(argv[0]);
 	Py_Initialize();
 
-    PySys_SetPath("./Python/Lib;./Python/Lib/site-packages;");
+//PySys_SetPath("./Python/Lib;./Python/Lib/site-packages;");
+    PySys_SetPath("./Python/Lib;./Python/uncompyle2.zip;");
 
 	LOG_F(INFO,"EVECC booting");
 	LOG_F(INFO,"Initializing blue...");
@@ -95,7 +91,7 @@ int main(int argc, char **argv) {
 
     bool is_genkey = has_argument("--gen-key");
 
-    if (!is_genkey) {
+    if (!is_genkey && !has_argument("--dump-keys")) {
         int status = init_cryptcontext(password);
         set_password(password);
         if (status != 0) {
