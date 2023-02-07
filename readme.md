@@ -8,7 +8,7 @@ Before starting, please make sure you have a copy of eveloader2 to run your code
 evecc.exe --gen-key
 ```
 2. extract the game's crypt key using `evecc.exe --dump-keys C:\path\to\Crucible\bin\blue.dll`.  This will generate `ccp.keys.crypt` and `ccp.keys.pub` files
-3. dump the game's client code with `evecc.exe --dumpcode C:\path\to\Crucible\script\compiled.code -o eve_code`.  at this point you can modify the code in the `eve_code` directory.
+3. dump the game's client code with `evecc.exe --dumpcode C:\path\to\Crucible\script\compiled.code -o eve_code`. this will take quite some time.  once complete you can modify the code in the `eve_code` directory.
 4. compile the game code with the following command `evecc.exe --compilecode -o compiled.code eve_code\carbon\client -I eve_code\carbon\common -I eve_code\eve\common -I eve_code\eve\client`.  The output file should be copied to `C:\ProgramData\eveloader2\script\` in order for eveloader2 to pick up the changes.
 5. inject a custom eveloader2 patch - create a new file in your eveloader2 folder called `patches.ini` and make a folder `patches`.
 you will also want to copy your `evecc.keys.pub` and `ccp.keys.pub` into the `patches` folder.
@@ -20,12 +20,7 @@ name="Patch public key"
 original_data=./patches/ccp.keys.pub
 patched_data=./patches/evecc.keys.pub
 ```
-5. please be aware that once you patch your public key in, the game will not recognize the original `compiled.code` file.  You will have to compile one and place that at 
-
-```shell
-set BP=C:\path\to\client\code
-evecc.exe --compilecode -o compiled.code -I %BP%\carbon\client -I %BP%\carbon\common -I %BP%\eve\common -I %BP%\eve\client
-```
+5. please be aware that once you patch your public key in, the game will not recognize the original `compiled.code` file.  You will have to compile one.
 
 ## building evecc
 1. install Visual Studio Installer

@@ -19,6 +19,7 @@ def unpack(name):
     for (filename, type), (encrypted_code, hash) in codes:
         data = blue.UnjumbleString(encrypted_code, True)
         code = marshal.loads(data)
+        print "original filename: " + filename
         filename = code.co_filename[48:]
         print filename + " : " + type + " | " + str(hash)
         out_filename = "tmp_out/" + os.path.splitext(filename)[0] + ".py"
@@ -98,103 +99,82 @@ import binascii
 import struct
 
 def ScriptName(path):
-	s = path.split("\\script")[1].replace('\\', '/')
-	return s
+    s = path.split("\\script")[1].replace('\\', '/')
+    return s
 
 def CarbonName(path):
-	#s = path.split("")[1].replace('\\', '/')
-	#return s
-	s = path.split("carbon")[1].replace('\\', '/')
-	return "carbon" + s
+    #s = path.split("")[1].replace('\\', '/')
+    #return s
+    s = path.split("carbon")[1].replace('\\', '/')
+    return "../carbon" + s
 
-def FindCodeFiles(root, files, isCarbon, base):
-	d = []
-	for v in files:
-		filename = os.path.join(root, v)
-		if os.path.splitext(filename)[1] != ".py":
-			continue
-		f = open(filename, "r")
-		source = f.read()
-		f.close()
+def FindCodeFiles(root, files, isCarbon, base, idx):
+    d = []
+    i = 0
+    for v in files:
+        filename = os.path.join(root, v)
+        if os.path.splitext(filename)[1] != ".py":
+            continue
+        f = open(filename, "r")
+        source = f.read()
+        f.close()
 
-		name = ""
-		if "carbon" in filename:
-			name = CarbonName(filename)
-		else:
-			name = ScriptName(filename)
+        name = ""
+        if "carbon" in filename:
+            name = "root:/" + CarbonName(filename)
+        else:
+            name = "script:/" + ScriptName(filename)
 
-		print "> Compiling " + filename + " as script:/" + name
-		code = compile(source, filename.encode("utf8"), 'exec')
+        code = compile(source, filename.encode("utf8"), 'exec')
+        sort_key = (idx * 10000) + i
+        print "> Compiling " + filename + " as " + name + " with sort key " + str(sort_key)
 
-		try:
-			d.append(
-				(("script:/" + name, "compiled"), (blue.JumbleString(marshal.dumps(code), True), hash(code)))
-			)
-		except Exception as e:
-			print e
-			#import traceback
-			#traceback.print_exc()
-	return d
+        try:
+            d.append(((name, "compiled"), (blue.JumbleString(marshal.dumps(code), True), sort_key)))
+        except Exception as e:
+            print e
+            #import traceback
+            #traceback.print_exc()
+        i = i + 1
+    return d
 
 def Generate(base, output):
-	#print "Generating code from " + base
-	all = {}
-	all['code'] = []
+    #print "Generating code from " + base
+    all = {}
+    all['code'] = []
 
-	for path in base:
-		print "Checking " + path
-		for root, dirs, files in os.walk(path):
-			all['code'] = all['code'] + FindCodeFiles(root, files, False, path)
+    idx = 0
+    for path in base:
+        print "Checking " + path
+        for root, dirs, files in os.walk(path):
+            all['code'] = all['code'] + FindCodeFiles(root, files, False, path, idx)
+            idx = idx + 1
 
-	#TODO Rewrite this shit
-	#print "Checking " + base + "/eve/client/script"
-	#for root, dirs, files in os.walk(base + "/eve/client/script"):
-	#	all['code'] = FindCodeFiles(root, files, False, base)
+    all['cargo'] = {}
+    all['preprocessed'] = False
+    all['timestamp'] = "shit"
+    all['code'] = sorted(all['code'], key=lambda x: x[1][1])
 
-	#print "Checking " + base + "/eve/common/script"
-	#for root, dirs, files in os.walk(base + "/eve/common/script/"):
-	#	all['code'] = all['code'] + FindCodeFiles(root, files, False, base)
+    print "Generating signature"
+    allout = cPickle.dumps(all, -1)
+    try:
+        signature = blue.SignData(allout)
+    except IOError as e:
+        print e
+        print "You probably don't have GoldenCD.pikl ;)"
+    print "Signature: " + binascii.b2a_hex(signature)
 
-	#print "Checking " + base + "/carbon/"
-	#for root, dirs, files in os.walk(base + "/carbon/"):
-	#	all['code'] = all['code'] + FindCodeFiles(root, files, True, base)
-	
-	#print "Checking " + base + "/eve/client/alasiya" 
-	#for root, dirs, files in os.walk(base + "/eve/alasiya/script/"):
-	#	all['code'] = all['code'] + FindCodeFiles(root, files, False, base)
 
-	#print "Checking " + base + "/eve/qatools/script"
-	#for root, dirs, files in os.walk(base + "/eve/qatools/script/"):
-	#	all['code'] = all['code'] + FindCodeFiles(root, files, False, base)
-
-	#print "Checking " + base + "/eve/devtools/script"
-	#for root, dirs, files in os.walk(base + "/eve/devtools/script/"):
-	#	all['code'] = all['code'] + FindCodeFiles(root, files, False, base)
-
-	all['cargo'] = {}
-	all['preprocessed'] = False
-	all['timestamp'] = "shit"
-
-	print "Generating signature"
-	allout = cPickle.dumps(all, -1)
-	try:
-		signature = blue.SignData(allout)
-	except IOError as e:
-		print e
-		print "You probably don't have GoldenCD.pikl ;)"
-	print "Signature: " + binascii.b2a_hex(signature)
-	
-	
-	dataout = (168686339, allout, signature)
-	d = cPickle.dumps(dataout)
-	print "Writing " + output + " to ./" + output
-	f = open(os.path.join(output_path), "wb")
-	f.write(d)
-	f.close()
+    dataout = (168686339, allout, signature)
+    d = cPickle.dumps(dataout)
+    print "Writing " + output + " to ./" + output
+    f = open(os.path.join(output_path), "wb")
+    f.write(d)
+    f.close()
 
 try:
-	Generate(input_paths, output_path)
+    Generate(input_paths, output_path)
 except Exception as e:
-	print e
+    print e
 
 )ADFAAF";

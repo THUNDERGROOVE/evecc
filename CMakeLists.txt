@@ -49,9 +49,8 @@ target_link_directories(evecc PRIVATE "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRI
 add_custom_target(evecc_release_zip COMMAND
         "C:/Program Files/7-Zip/7z.exe" "a" "-t7z" "evecc-${CMAKE_BUILD_TYPE}.7z"
         "${CMAKE_CURRENT_BINARY_DIR}/evecc.exe"
-        "${CMAKE_CURRENT_BINARY_DIR}/python27.dll"
-        "${CMAKE_CURRENT_BINARY_DIR}/zlib1.dll"
         "${CMAKE_CURRENT_SOURCE_DIR}/readme.md"
+        "${CMAKE_CURRENT_BINARY_DIR}/Python"
         )
 
 add_custom_target(copy_python_scripts COMMAND ${CMAKE_COMMAND} -E
