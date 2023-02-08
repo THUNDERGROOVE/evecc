@@ -31,17 +31,31 @@ set(evecc_src
 
 add_executable(evecc ${evecc_src})
 
+SET(PYTHON_VERSION "2.7.13" CACHE STRING "")
+set(BUILD_EXTENSIONS_AS_BUILTIN ON CACHE BOOL "")
+set(BUILTIN_UNICODEDATA ON CACHE BOOL "")
+
+add_subdirectory(vendor/python-cmake-buildsystem)
+
+add_dependencies(evecc libpython-static python)
+
+
 target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/")
+#target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_BINARY_DIR}/vendor/python-cmake-buildsystem/include")
+target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_BINARY_DIR}/vendor/python-cmake-buildsystem/include")
+target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_BINARY_DIR}/vendor/python-cmake-buildsystem/bin/PC")
+target_link_directories(evecc PUBLIC "${CMAKE_BINARY_DIR}/vendor/python-cmake-buildsystem/static-libs")
+
 #target_link_libraries(evecc PRIVATE ZLIB::ZLIB)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-debug/include")
-    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-debug/bin/PC")
-    target_link_directories(evecc PUBLIC "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-debug/static-libs")
-else()
-    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/include")
-    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/bin/PC")
-    target_link_directories(evecc PRIVATE "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/static-libs")
-endif()
+#if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+#    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-debug/include")
+#    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-debug/bin/PC")
+#    target_link_directories(evecc PUBLIC "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-debug/static-libs")
+#else()
+#    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/include")
+#    target_include_directories(evecc PUBLIC SYSTEM "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/bin/PC")
+#    target_link_directories(evecc PRIVATE "${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/cmake-build-release/static-libs")
+#endif()
 
 target_link_libraries(evecc PRIVATE "python27.lib")
 

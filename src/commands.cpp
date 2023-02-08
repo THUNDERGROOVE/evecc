@@ -7,7 +7,15 @@
 #include "util.h"
 
 #include "scripts.h"
+#pragma warning(push)
+#pragma warning(disable:5033)
+// this is just some dumb shit to prevent it from trying to load python27_d.lib
+#ifdef _DEBUG
+#undef _DEBUG
 #include "Python.h"
+#define _DEBUG
+#endif
+#pragma warning(pop)
 
 using namespace std::chrono;
 
