@@ -54,12 +54,21 @@ add_custom_target(evecc_release_zip COMMAND
         "${CMAKE_CURRENT_SOURCE_DIR}/readme.md"
         "${CMAKE_CURRENT_BINARY_DIR}/Python"
         )
+add_dependencies(evecc_release_zip evecc)
 
-add_custom_target(copy_python_scripts COMMAND ${CMAKE_COMMAND} -E
-        copy_directory ${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/Python-2.7.13/Lib ${CMAKE_CURRENT_BINARY_DIR}/Python/Lib)
-add_custom_target(zip_python_uncompyle2 COMMAND ${CMAKE_COMMAND} -E
-        tar cvf ${CMAKE_CURRENT_BINARY_DIR}/Python/uncompyle2.zip --format=zip uncompyle2/ WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/vendor/uncompyle2)
+add_custom_command(
+        OUTPUT Python/Lib
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/Python-2.7.13/Lib ${CMAKE_CURRENT_BINARY_DIR}/Python/Lib
+        DEPENDS ${CMAKE_SOURCE_DIR}/vendor/python-cmake-buildsystem/Python-2.7.13/Lib
+)
+add_custom_command(
+        OUTPUT Python/uncompyle2.zip
+        COMMAND "${CMAKE_COMMAND}" -E tar cvf ${CMAKE_CURRENT_BINARY_DIR}/Python/uncompyle2.zip --format=zip uncompyle2/
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/vendor/uncompyle2
+        DEPENDS ${CMAKE_SOURCE_DIR}/vendor/uncompyle2/uncompyle2
+        )
 
-add_dependencies(evecc copy_python_scripts zip_python_uncompyle2)
+add_custom_target(evecc_python_dependencies ALL
+        DEPENDS ${PROJECT_BINARY_DIR}/Python/Lib ${PROJECT_BINARY_DIR}/Python/uncompyle2.zip)
 
 file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/Python)
