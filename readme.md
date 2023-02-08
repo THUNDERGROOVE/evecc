@@ -23,24 +23,25 @@ patched_data=./patches/evecc.keys.pub
 5. please be aware that once you patch your public key in, the game will not recognize the original `compiled.code` file.  You will have to compile one.
 
 ## building evecc
-1. install Visual Studio Installer
-2. in the Visual Studio Installer, install the following
+1. install [Build Tools for Visual Studio 2022](https://visualstudio.microsoft.com/downloads/)
+2. in the Visual Studio Installer, ensure the following items are installed
    1. `.NET framework 4.7.2 SDK`
    2. `.NET framework 4.7.2 targeting pack`
    3. `CMake tools for Winddows`
-   4. `MSVC v142 - VS 2019 c++ x64/x86 build tools (Latest)`
+   4. `MSVC v143 - VS 2022 c++ x64/x86 build tools (Latest)`
    5. `Windows Universal CRT SDK`
-   6. `C++ ATL for latest v142 bubild tools (x86 & x64)`
-   7. `C++ MFC for latest v142 bubild tools (x86 & x64)`
+   6. `C++ ATL for latest v143 build tools (x86 & x64)`
+   7. `C++ MFC for latest v143 build tools (x86 & x64)`
    8. `Windows 10 SDK (<any version>)`
    9. `Windows Universal C Runtime`
-2. install Ninja
-3. run the following script in `x64 Native Tools Command Prompt for VS 2019`
-
+3. install [Ninja](https://ninja-build.org/)
+4. in a command prompt, run the following bat file ``
+5. run the following commands from the source directory
 ```shell
-set VCPKG_DEFAULT_TRIPLET=x64-windows
+"C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
+set vcpkg_default_triplet=x64-windows
 mkdir build
 cd build
-cmake -G "Ninja" ..
+cmake -g "ninja" .. -DCMAKE_BUILD_TYPE=Release
 ninja
 ```
