@@ -99,6 +99,7 @@ int main(int argc, char **argv) {
     parse_argument("-o", &args->output_file);
     parse_argument("--password", &args->password);
     parse_argument("-k", &args->key_type);
+    args->input_files = parse_all_string_args("-I");
 
 
     CryptKeyType kt = parse_key_type(args->key_type);
