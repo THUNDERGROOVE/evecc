@@ -7,7 +7,7 @@ if (NOT SKIP_AUTOMATE_VCPKG)
     include(cmake/automate-vcpkg.cmake)
 
     vcpkg_bootstrap()
-    vcpkg_install_packages(loguru)
+    vcpkg_install_packages(loguru crc32c)
 endif()
 
 project(evecc)
@@ -27,7 +27,7 @@ set(evecc_src
         src/ini.h
         src/INIReader.cpp
         src/INIReader.h
-        src/commands.cpp src/commands.h)
+        src/commands.cpp src/commands.h src/py_build_cache.cpp src/py_build_cache.h)
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gen/version.h
         ALL
@@ -38,6 +38,9 @@ add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gen/version.h
 add_custom_target(git_hash ALL DEPENDS ${CMAKE_BINARY_DIR}/gen/version.h)
 
 add_executable(evecc ${evecc_src})
+
+find_package(Crc32c CONFIG REQUIRED)
+target_link_libraries(evecc PRIVATE Crc32c::crc32c)
 
 SET(PYTHON_VERSION "2.7.13" CACHE STRING "")
 set(BUILD_EXTENSIONS_AS_BUILTIN ON CACHE BOOL "")

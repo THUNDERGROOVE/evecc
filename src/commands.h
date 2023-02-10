@@ -24,6 +24,8 @@ struct cmd_args {
 
     std::vector<std::string> input_files;
 
+    bool do_cleancache;
+    bool do_nocache;
     bool do_genkeys;
     bool do_dumpcode;
     bool do_dumplib;

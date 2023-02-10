@@ -45,3 +45,7 @@ cd build
 cmake -g "ninja" .. -DCMAKE_BUILD_TYPE=Release
 ninja
 ```
+
+## notes
+- the current setup currently can only generate modified `compiled.code` files.
+- during my testing of loading `*.ccp` the game always failed to accept them.  As EVECC reuses CCP's crypt keys, we should have no issues loading them without patching keys.

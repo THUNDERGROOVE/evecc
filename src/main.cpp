@@ -8,6 +8,8 @@
 #include "util.h"
 #include "loguru/loguru.hpp"
 #include "loguru/loguru.cpp"
+#include "py_build_cache.h"
+#include <filesystem>
 
 
 #pragma comment(lib, "python27.lib")
@@ -94,6 +96,8 @@ int main(int argc, char **argv) {
     args->do_unpyj = has_argument("unpyj", 1);
     args->do_console = has_argument("console", 1);
     args->do_runscript = has_argument("runscript", 1);
+    args->do_cleancache = has_argument("cleancache", 1);
+    args->do_nocache = has_argument("--no-cache", -1);
 
     parse_argument("-i", &args->input_file);
     parse_argument("-o", &args->output_file);
@@ -103,6 +107,8 @@ int main(int argc, char **argv) {
 
 
     CryptKeyType kt = parse_key_type(args->key_type);
+
+    set_do_build_cache(!args->do_nocache);
 
     if (args->do_help) {
         return cmd_help();
@@ -123,7 +129,7 @@ int main(int argc, char **argv) {
         ctx->set_key_type = kt;
         LOG_F(INFO,"key type set to: %s", key_types[ctx->set_key_type]);
     }
-    if (args->do_genkeys || args->do_dumpkeys){
+    if (args->do_genkeys || args->do_dumpkeys || args->do_cleancache){
         int status = init_cryptcontext_gen(args->password);
         set_password(args->password);
 
@@ -135,6 +141,8 @@ int main(int argc, char **argv) {
 
     if (args->do_dumpcode) {
         return cmd_dumpcode(args);
+    } else if (args->do_cleancache) {
+        std::filesystem::remove(std::filesystem::path(".build_cache"));
     } else if (args->do_genkeys) {
         return cmd_genkey(args);
     } else if (args->do_dumplib) {

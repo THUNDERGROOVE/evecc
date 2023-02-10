@@ -49,7 +49,30 @@ int cmd_dumpcode(cmd_args *args) {
 
 
 int cmd_dumplib(cmd_args *args) {
-    // @TODO: This
+    high_resolution_clock::time_point t1 = high_resolution_clock::now();
+    PyGILState_STATE s = PyGILState_Ensure();
+    PyObject *main = PyImport_AddModule("__main__");
+    if (args->input_file == NULL || args->output_file == NULL) {
+        LOG_F(ERROR, "you must set -i <input file> and -o <output directory> for dumplib");
+        return -1;
+    }
+
+    PyObject *o = PyString_FromString(args->output_file);
+    PyObject_SetAttrString(main, "output_path", o);
+
+    PyObject *i = PyString_FromString(args->input_file);
+    PyObject_SetAttrString(main, "input_path", i);
+
+    int r = PyRun_SimpleString(uncompile_lib_script);
+
+    PyGILState_Release(s);
+
+    high_resolution_clock::time_point t2 = high_resolution_clock::now();
+    auto duration = duration_cast<microseconds>(t2 - t1).count();
+    std::cout << "Dumped codefile in " << duration << "us\n";
+    fflush(stdout);
+
+    return 0;
     return 0;
 }
 
@@ -150,18 +173,19 @@ static const char *help_text = R"ADFAAF(
 %s(%s): Compile shit for EVE
 
   commands:
-    genkeys                          | generate several necessary files
-    dumpkeys -i <file>               | dump CCP's keys. supply path to clean blue.dll
-    dumpcode -i <file>               | dump and decompile .code file
-    compilecode [-I <dir>]           | compile .code file, provide all needed dirs per documentation
-    unpyj -i <file>                  | dump .pyj file (or really any JumbleString data)
-    compilelib                     * | compile .lib file (currently this is non-functional)
-    dumplib -i <file>              * | dump and decompile .ccp file
-    help or --help or -h             | print this message
-    runscript -i <file>              | run python script in the evecc environment
-    console                          | start a python console in the evecc environment
+    genkeys                            | generate several necessary files
+    dumpkeys -i <file>                 | dump CCP's keys. supply path to clean blue.dll
+    dumpcode -i <file>                 | dump and decompile .code file
+    compilecode [-I <dir>]{--no-cache} | compile .code file, provide all needed dirs per documentation
+    unpyj -i <file>                    | dump .pyj file (or really any JumbleString data)
+    compilelib                       * | compile .lib file (currently this is non-functional)
+    dumplib -i <file>                * | dump and decompile .ccp file
+    help or --help or -h               | print this message
+    runscript -i <file>                | run python script in the evecc environment
+    console                            | start a python console in the evecc environment
 
     * signifies non-functional commands
+    --no-cache: disables build caching
 )ADFAAF";
 int cmd_help() {
 	printf(help_text, __argv[0], GIT_HASH);

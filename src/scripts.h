@@ -1,5 +1,42 @@
 #pragma once
 
+static const char *uncompile_lib_script = R"ADFAAF(
+import blue
+import zipfile
+import zlib
+import os
+import marshal
+import uncompyle2
+
+# Run this code within EVE works on NEW eve builds
+with zipfile.ZipFile(input_path, "r") as zf:
+    print input_path + " opened!"
+    for filename in zf.namelist():
+        if "appConst.pyj" in filename:
+            continue
+        if filename[-4:] == ".pyj":
+            print filename
+            data = blue.UnjumbleString(zf.read(filename), True)
+            code = marshal.loads(data[8:])
+            head, tail = os.path.split(filename)
+            newfile = os.path.join(output_path, head)
+            try:
+                os.makedirs(newfile)
+            except:
+                pass
+
+            out_file = os.path.join(newfile, tail[:-4] + ".pyo")
+            out_file_py = os.path.join(newfile, tail[:-4] + ".py")
+
+            f = open(out_file_py, "wb")
+            print " >> decompiling " + out_file + " -> " + out_file_py
+            try:
+                uncompyle2.uncompyle('2.7', code, f)
+            except Exception as e:
+                print " >> failed to decompile " + str(e)
+            f.close()
+)ADFAAF";
+
 static const char *uncompile_code_script = R"ADFAAF(
 import blue
 import zipfile
@@ -113,24 +150,31 @@ def FindCodeFiles(root, files, isCarbon, base, idx):
     i = 0
     for v in files:
         filename = os.path.join(root, v)
-        if os.path.splitext(filename)[1] != ".py":
-            continue
-        f = open(filename, "r")
-        source = f.read()
-        f.close()
-
         name = ""
         if "carbon" in filename:
             name = "root:/" + CarbonName(filename)
         else:
             name = "script:/" + ScriptName(filename)
-
-        code = compile(source, filename.encode("utf8"), 'exec')
         sort_key = (idx * 10000) + i
-        print "> Compiling " + filename + " as " + name + " with sort key " + str(sort_key)
+
+        if os.path.splitext(filename)[1] != ".py":
+            continue
+        cache = blue.GetBuildCache(filename)
+        data = None
+        if cache == None:
+            f = open(filename, "r")
+            source = f.read()
+            f.close()
+            print "> Compiling " + filename + " as " + name + " with sort key " + str(sort_key)
+            code = compile(source, filename.encode("utf8"), 'exec')
+            data = blue.JumbleString(marshal.dumps(code), True)
+            blue.SetBuildCache(filename, data)
+        else:
+            #print " > Using cached " + filename + " as " + name + " with sort key " + str(sort_key)
+            data = cache
 
         try:
-            d.append(((name, "compiled"), (blue.JumbleString(marshal.dumps(code), True), sort_key)))
+            d.append(((name, "compiled"), (data, sort_key)))
         except Exception as e:
             print e
             #import traceback
