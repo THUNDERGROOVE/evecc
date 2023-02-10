@@ -29,6 +29,14 @@ set(evecc_src
         src/INIReader.h
         src/commands.cpp src/commands.h)
 
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gen/version.h
+        ALL
+        COMMAND
+        ${CMAKE_COMMAND} -D TARGET_DIR=${CMAKE_CURRENT_BINARY_DIR} -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/git.cmake
+        WORKING_DIRECTORY
+        ${CMAKE_CURRENT_SOURCE_DIR})
+add_custom_target(git_hash ALL DEPENDS ${CMAKE_BINARY_DIR}/gen/version.h)
+
 add_executable(evecc ${evecc_src})
 
 SET(PYTHON_VERSION "2.7.13" CACHE STRING "")
@@ -37,7 +45,8 @@ set(BUILTIN_UNICODEDATA ON CACHE BOOL "")
 
 add_subdirectory(vendor/python-cmake-buildsystem)
 
-add_dependencies(evecc libpython-static python)
+add_dependencies(evecc libpython-static python git_hash)
+target_include_directories(evecc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/gen)
 
 
 target_include_directories(evecc PUBLIC SYSTEM "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include/")

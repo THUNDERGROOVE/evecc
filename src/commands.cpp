@@ -3,6 +3,7 @@
 //
 
 #include <iostream>
+#include "version.h"
 #include "commands.h"
 #include "util.h"
 
@@ -19,18 +20,19 @@
 
 using namespace std::chrono;
 
-int cmd_dumpcode(char *input_file, char *output_file) {
+int cmd_dumpcode(cmd_args *args) {
     high_resolution_clock::time_point t1 = high_resolution_clock::now();
     PyGILState_STATE s = PyGILState_Ensure();
     PyObject *main = PyImport_AddModule("__main__");
-    if (input_file == NULL || output_file == NULL) {
+    if (args->input_file == NULL || args->output_file == NULL) {
+        LOG_F(ERROR, "you must set -i <input file> and -o <output directory> for dumpcode");
         return -1;
     }
 
-    PyObject *o = PyString_FromString(output_file);
+    PyObject *o = PyString_FromString(args->output_file);
     PyObject_SetAttrString(main, "output_path", o);
 
-    PyObject *i = PyString_FromString(input_file);
+    PyObject *i = PyString_FromString(args->input_file);
     PyObject_SetAttrString(main, "input_path", i);
 
     int r = PyRun_SimpleString(uncompile_code_script);
@@ -46,25 +48,24 @@ int cmd_dumpcode(char *input_file, char *output_file) {
 }
 
 
-int cmd_dumplib(char *input_file, char *output_file) {
+int cmd_dumplib(cmd_args *args) {
     // @TODO: This
     return 0;
 }
 
-int cmd_compilecode(std::vector<std::string> input_files,
-			   char *output_file) {
+int cmd_compilecode(cmd_args *args) {
 	high_resolution_clock::time_point t1 = high_resolution_clock::now();
 	PyGILState_STATE s = PyGILState_Ensure();
 	PyObject *main = PyImport_AddModule("__main__");
 
-	if (input_files.size() > 0) {
+	if (args->input_files.size() > 0) {
 		//PyObject *p = PyString_FromString(input_file);
 		//PyObject_SetAttrString(main, "input_path", p);
 		//Py_DECREF(p);
-		PyObject *p = PyList_New(input_files.size());
-		for (uint32_t i = 0; i < input_files.size(); i++) {
+		PyObject *p = PyList_New(args->input_files.size());
+		for (uint32_t i = 0; i < args->input_files.size(); i++) {
 			PyObject *str =
-				PyString_FromString(input_files[i].c_str());
+				PyString_FromString(args->input_files[i].c_str());
 			//PyList_Append(p, str);
 			PyList_SetItem(p, i, str);
 			//Py_DECREF(str);
@@ -76,8 +77,8 @@ int cmd_compilecode(std::vector<std::string> input_files,
 		return 3;
 	}
 
-	if (output_file != NULL) {
-		PyObject *o = PyString_FromString(output_file);
+	if (args->output_file != NULL) {
+		PyObject *o = PyString_FromString(args->output_file);
 		PyObject_SetAttrString(main, "output_path", o);
 		//Py_DECREF(o);
 	}
@@ -95,8 +96,8 @@ int cmd_compilecode(std::vector<std::string> input_files,
 	return r;
 }
 
-int cmd_unpyj(char *input_file, char *output_file) {
-	FILE *f = fopen(input_file, "rb");
+int cmd_unpyj(cmd_args *args) {
+	FILE *f = fopen(args->input_file, "rb");
 	if (f == NULL) {
 		LOG_F(ERROR,"cmd_unpyj: unable to open input file");
 		return -1;
@@ -112,25 +113,25 @@ int cmd_unpyj(char *input_file, char *output_file) {
 
 	char *out = (char *)calloc(1, size * 2);
 	uint32_t os = UnjumbleString(data, size, out, size * 2, ctx->set_key_type);
-	f = fopen(output_file, "wb");
+	f = fopen(args->output_file, "wb");
 	fwrite(out, os, 1, f);
 	fclose(f);
 	return 0;
 }
 
-int cmd_compilelib(char *input_file, char *output_file) {
+int cmd_compilelib(cmd_args *args) {
 	high_resolution_clock::time_point t1 = high_resolution_clock::now();
 	PyGILState_STATE s = PyGILState_Ensure();
 	PyObject *main = PyImport_AddModule("__main__");
 
-	if (input_file != NULL) {
-		PyObject *p = PyString_FromString(input_file);
+	if (args->input_file != NULL) {
+		PyObject *p = PyString_FromString(args->input_file);
 		PyObject_SetAttrString(main, "input_path", p);
 		Py_DECREF(p);
 	}
 
-	if (output_file != NULL) {
-		PyObject *o = PyString_FromString(output_file);
+	if (args->output_file != NULL) {
+		PyObject *o = PyString_FromString(args->output_file);
 		PyObject_SetAttrString(main, "output_path", o);
 		//Py_DECREF(o);
 	}
@@ -144,31 +145,48 @@ int cmd_compilelib(char *input_file, char *output_file) {
 	return r;
 }
 
+
+static const char *help_text = R"ADFAAF(
+%s(%s): Compile shit for EVE
+
+  commands:
+    genkeys                          | generate several necessary files
+    dumpkeys -i <file>               | dump CCP's keys. supply path to clean blue.dll
+    dumpcode -i <file>               | dump and decompile .code file
+    compilecode [-I <dir>]           | compile .code file, provide all needed dirs per documentation
+    unpyj -i <file>                  | dump .pyj file (or really any JumbleString data)
+    compilelib                     * | compile .lib file (currently this is non-functional)
+    dumplib -i <file>              * | dump and decompile .ccp file
+    help or --help or -h             | print this message
+    runscript -i <file>              | run python script in the evecc environment
+    console                          | start a python console in the evecc environment
+
+    * signifies non-functional commands
+)ADFAAF";
 int cmd_help() {
-	printf("%s(%s): Compile shit for EVE\n", __argv[0], "it's-fucked");//BUILD_NO);
-	printf("    --dumpcode <codefile> <output directory>\n");
-	printf("    --dumplib <libfile> -i <output directory>\n");
-	printf("    --compilecode -o <output file> <-I ...>\n");
-	printf("    --compilelib <code lib> -o <output file>\n");
-    printf("    --gen-key \n");
+	printf(help_text, __argv[0], GIT_HASH);
 
 	return 0;
 }
 
-int cmd_genkey(char *password) {
+int cmd_genkey(cmd_args *args) {
     LOG_F(INFO,"making code accessors");
 
-    if (make_code_accessors(password)) {
+    if (make_code_accessors(args->password)) {
         LOG_F(INFO,"code accessors generated sucessfully");
     }
 
     return 0;
 }
 
-int cmd_dumpkeys(char *file) {
-    FILE *f = fopen(file, "rb");
+int cmd_dumpkeys(cmd_args *args) {
+    if (args->input_file == NULL) {
+        LOG_F(ERROR, "you must supply -i <input file>");
+        return -1;
+    }
+    FILE *f = fopen(args->input_file, "rb");
     if (f == NULL) {
-        LOG_F(ERROR,"could not open input file: %s", file);
+        LOG_F(ERROR, "could not open input file: %s", args->input_file);
         return -1;
     }
     fseek(f, 0, SEEK_END);
@@ -187,7 +205,7 @@ int cmd_dumpkeys(char *file) {
     LOG_F(INFO,"scanning for RSA public key");
     char *ptr = (char *)memmem(buf, size, RSA_PUB, sizeof(RSA_PUB));
     if (ptr == NULL) {
-        LOG_F(ERROR,"could not find RSA_PUB in input file: %s", file);
+        LOG_F(ERROR,"could not find RSA_PUB in input file: %s", args->input_file);
         return -2;
     }
     buf = rewind;
@@ -198,7 +216,7 @@ int cmd_dumpkeys(char *file) {
     LOG_F(INFO,"scanning for 3DES crypt key");
     ptr = (char *)memmem(buf, size, TDES_SIG, sizeof(TDES_SIG)-2);
     if (ptr == NULL) {
-        LOG_F(INFO," could not find TDES_SIG in input file: %s", file);
+        LOG_F(INFO,"could not find TDES_SIG in input file: %s", args->input_file);
         return -3;
     }
     LOG_F(INFO, "3DES crypt key found!");

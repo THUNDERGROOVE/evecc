@@ -33,9 +33,15 @@ static std::vector<std::string> parse_all_string_args(char *argument) {
 	return args;
 }
 
-static bool has_argument(char *argument) {
-    for (int i = 1; i < __argc; i++) {
-        if (strcmp(argument, __argv[i]) == 0) {
+static bool has_argument(char *argument, int place) {
+    if (place < 0) {
+        for (int i = 1; i < __argc; i++) {
+            if (strcmp(argument, __argv[i]) == 0) {
+                return true;
+            }
+        }
+    } else {
+        if (place < __argc && strcmp(argument, __argv[place]) == 0) {
             return true;
         }
     }
@@ -69,8 +75,6 @@ int main(int argc, char **argv) {
 	Py_SetPythonHome("./Python");
 	Py_SetProgramName(argv[0]);
 	Py_Initialize();
-
-//PySys_SetPath("./Python/Lib;./Python/Lib/site-packages;");
     PySys_SetPath("./Python/Lib;./Python/uncompyle2.zip;");
 
 	LOG_F(INFO,"EVECC booting");
@@ -78,32 +82,50 @@ int main(int argc, char **argv) {
 
 	initblue();
 
-    char *password = NULL;
-    char *input_file = NULL;
-    char *output_file = NULL;
-    char *key_type = NULL;
+    cmd_args *args = new cmd_args();
 
-    parse_argument("--password", &password);
-    parse_argument("-o", &output_file);
-    parse_argument("-k", &key_type);
-    CryptKeyType kt = parse_key_type(key_type);
+    args->do_dumpcode = has_argument("dumpcode", 1);
+    args->do_dumplib = has_argument("dumplib", 1);
+    args->do_compilecode = has_argument("compilecode", 1);
+    args->do_compilelib = has_argument("compilelib", 1);
+    args->do_dumpkeys = has_argument("dumpkeys", 1);
+    args->do_genkeys = has_argument("genkeys", 1);
+    args->do_help = has_argument("help", 1) || has_argument("--help", -1) || has_argument("-h", -1);
+    args->do_unpyj = has_argument("unpyj", 1);
+    args->do_console = has_argument("console", 1);
+    args->do_runscript = has_argument("runscript", 1);
+
+    parse_argument("-i", &args->input_file);
+    parse_argument("-o", &args->output_file);
+    parse_argument("--password", &args->password);
+    parse_argument("-k", &args->key_type);
+    args->input_files = parse_all_string_args("-I");
 
 
-    bool is_genkey = has_argument("--gen-key");
+    CryptKeyType kt = parse_key_type(args->key_type);
 
-    if (!is_genkey && !has_argument("--dump-keys")) {
-        int status = init_cryptcontext(password);
-        set_password(password);
+    if (args->do_help) {
+        return cmd_help();
+    }
+
+    if (args->do_dumpcode || args->do_runscript ||
+        args->do_console || args->do_unpyj ||
+        args->do_compilelib || args->do_compilecode || args->do_dumplib) {
+        LOG_F(INFO, "initializing crypto context");
+
+        int status = init_cryptcontext(args->password);
+        set_password(args->password);
         if (status != 0) {
             LOG_F(ERROR,"failed to initialize crypt context");
             return -1;
         }
 
-        ctx->set_key_type = parse_key_type(key_type);
+        ctx->set_key_type = kt;
         LOG_F(INFO,"key type set to: %s", key_types[ctx->set_key_type]);
-    } else {
-        int status = init_cryptcontext_gen(password);
-        set_password(password);
+    }
+    if (args->do_genkeys || args->do_dumpkeys){
+        int status = init_cryptcontext_gen(args->password);
+        set_password(args->password);
 
         if (status != 0) {
             LOG_F(ERROR,"failed to initialize crypt context");
@@ -111,32 +133,32 @@ int main(int argc, char **argv) {
         }
     }
 
-    std::vector<std::string> input_files = parse_all_string_args("-I");
-    if (parse_argument("--dumpcode", &input_file)) {
-        return cmd_dumpcode(input_file, output_file);
-    } else if (is_genkey) {
-        return cmd_genkey(password);
-    } else if (parse_argument("--dump-keys", &input_file)) {
-        return cmd_dumpkeys(input_file);
-    } else if (has_argument("--check-keys")) {
-    } else if (parse_argument("--dumpcode", &input_file)) {
-        return cmd_dumpcode(input_file, output_file);
-    } else if (parse_argument("--compilecode", &input_file)) {
-        return cmd_compilecode(input_files, output_file);
-    } else if (parse_argument("--compilelib", &input_file)) {
-        return cmd_compilelib(input_file, output_file);
-    } else if (parse_argument("--unpyj", &input_file)) {
-        cmd_unpyj(input_file, output_file);
-    } else if (parse_argument("--console", &input_file)) {
+    if (args->do_dumpcode) {
+        return cmd_dumpcode(args);
+    } else if (args->do_genkeys) {
+        return cmd_genkey(args);
+    } else if (args->do_dumplib) {
+        return cmd_dumplib(args);
+    } else if (args->do_dumpkeys) {
+        return cmd_dumpkeys(args);
+    } else if (args->do_dumpcode) {
+        return cmd_dumpcode(args);
+    } else if (args->do_compilecode) {
+        return cmd_compilecode(args);
+    } else if (args->do_compilelib) {
+        return cmd_compilelib(args);
+    } else if (args->do_unpyj) {
+        cmd_unpyj(args);
+    } else if (args->do_console) {
         PyRun_SimpleString("import code\ncode.interact()");
-    } else if (parse_argument("--script", &input_file)) {
-        if (input_file == NULL) {
-            LOG_F(ERROR,"input file must be supplied");
+    } else if (args->do_runscript) {
+        if (args->input_file == NULL) {
+            LOG_F(ERROR,"-i <input> file must be supplied");
             return 0;
         }
-        FILE *f = fopen(input_file, "r");
+        FILE *f = fopen(args->input_file, "r");
         if (f == NULL) {
-            LOG_F(ERROR, "input file was not valid!");
+            LOG_F(ERROR, "input file (%v) was not valid!", args->input_file);
             return 0;
         }
         PyRun_SimpleFile(f, "input_file");

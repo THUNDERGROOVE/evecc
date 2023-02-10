@@ -16,13 +16,36 @@
 #define TDES_SIG "\x01\x02\x00\x00\x03\x66\x00\x00\x00\xA4\x00\x00"
 #define TDES_LEN 0x8C
 
-int cmd_dumpcode(char *input_file, char *output_file);
-int cmd_dumplib(char *input_file, char *output_file);
-int cmd_compilecode(std::vector<std::string> input_files, char *output_file);
-int cmd_unpyj(char *input_file, char *output_file);
-int cmd_compilelib(char *input_file, char *output_file);
+struct cmd_args {
+    char *password;
+    char *input_file;
+    char *output_file;
+    char *key_type;
+
+    std::vector<std::string> input_files;
+
+    bool do_genkeys;
+    bool do_dumpcode;
+    bool do_dumplib;
+    bool do_compilecode;
+    bool do_unpyj;
+    bool do_compilelib;
+    bool do_help;
+    bool do_runscript;
+    bool do_console;
+    bool do_dumpkeys;
+    cmd_args() {
+        memset(this, 0, sizeof(*this));
+    }
+};
+
+int cmd_dumpcode(cmd_args *args);
+int cmd_dumplib(cmd_args *args);
+int cmd_compilecode(cmd_args *args);
+int cmd_unpyj(cmd_args *args);
+int cmd_compilelib(cmd_args *args);
 int cmd_help();
-int cmd_genkey(char *password);
-int cmd_dumpkeys(char *file);
+int cmd_genkey(cmd_args *args);
+int cmd_dumpkeys(cmd_args *args);
 
 #endif //EVECC_COMMANDS_H
