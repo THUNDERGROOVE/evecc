@@ -4,3 +4,12 @@
 [submodule "vendor/uncompyle2"]
 	path = vendor/uncompyle2
 	url = https://github.com/wibiti/uncompyle2.git
+[submodule "vendor/loguru"]
+	path = vendor/loguru
+	url = https://github.com/emilk/loguru
+[submodule "vendor/crc32c"]
+	path = vendor/crc32c
+	url = https://github.com/google/crc32c
+[submodule "vendor/inih"]
+	path = vendor/inih
+	url = https://github.com/benhoyt/inih
