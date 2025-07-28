@@ -74,10 +74,15 @@ int main(int argc, char **argv) {
         LOG_F(ERROR, "EVECC depends on a local Python scripts which are missing.");
         return -1;
     }
+
+    if (!HasFile("./Python/Lib") || !HasFile("./Python/uncompyle6.zip")) {
+        LOG_F(ERROR, "EVECC depends on a local Python scripts which are missing.");
+        return -1;
+    }
 	Py_SetPythonHome("./Python");
 	Py_SetProgramName(argv[0]);
 	Py_Initialize();
-    PySys_SetPath("./Python/Lib;./Python/uncompyle2.zip;");
+    PySys_SetPath("./Python/Lib;./Python/uncompyle2.zip;./Python/uncompyle6.zip;");
 
 	LOG_F(INFO,"EVECC booting");
 	LOG_F(INFO,"Initializing blue...");
