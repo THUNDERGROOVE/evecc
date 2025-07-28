@@ -34,9 +34,10 @@ patched_data=./patches/evecc.keys.pub
    7. `C++ MFC for latest v143 build tools (x86 & x64)`
    8. `Windows 10 SDK (<any version>)`
    9. `Windows Universal C Runtime`
-3. install [Ninja](https://ninja-build.org/)
-4. in a command prompt, run the following bat file ``
-5. run the following commands from the source directory
+3. install [7-Zip](https://www.7-zip.org/) required for building release zips
+4. install [Ninja](https://ninja-build.org/)
+5. in a command prompt, run the following bat file ``
+6. run the following commands from the source directory
 ```shell
 "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
 set vcpkg_default_triplet=x64-windows
